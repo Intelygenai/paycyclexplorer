@@ -1,20 +1,33 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import Layout from '@/components/Layout/Layout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { Loader2, PlusCircle } from 'lucide-react';
+import UserManagement from './components/UserManagement';
+import CostCenterManagement from './components/CostCenterManagement';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { Permission } from '@/types/auth';
 
 const Settings = () => {
   const { user } = useAuth();
+  const supabaseAuth = useSupabaseAuth();
+  const isAdmin = supabaseAuth.hasPermission(Permission.MANAGE_USERS);
+  
+  const [saving, setSaving] = useState(false);
   
   const handleSave = () => {
-    toast({
-      title: "Settings saved",
-      description: "Your settings have been saved successfully.",
-    });
+    setSaving(true);
+    
+    setTimeout(() => {
+      setSaving(false);
+      toast({
+        title: "Settings saved",
+        description: "Your settings have been saved successfully.",
+      });
+    }, 1000);
   };
 
   return (
@@ -35,6 +48,12 @@ const Settings = () => {
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
+              {isAdmin && (
+                <>
+                  <TabsTrigger value="users">User Management</TabsTrigger>
+                  <TabsTrigger value="costCenters">Cost Centers</TabsTrigger>
+                </>
+              )}
             </TabsList>
             
             <TabsContent value="profile">
@@ -53,7 +72,7 @@ const Settings = () => {
                         id="name" 
                         type="text" 
                         className="w-full p-2 border rounded-md" 
-                        defaultValue={user?.name || ""}
+                        defaultValue={supabaseAuth.profile?.name || user?.name || ""}
                       />
                     </div>
                     <div className="space-y-2">
@@ -62,14 +81,42 @@ const Settings = () => {
                         id="email" 
                         type="email" 
                         className="w-full p-2 border rounded-md bg-gray-100" 
-                        defaultValue={user?.email || ""}
+                        defaultValue={supabaseAuth.profile?.email || user?.email || ""}
+                        disabled
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="department" className="text-sm font-medium">Department</label>
+                      <input 
+                        id="department" 
+                        type="text" 
+                        className="w-full p-2 border rounded-md" 
+                        defaultValue={supabaseAuth.profile?.department || user?.department || ""}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="role" className="text-sm font-medium">Role</label>
+                      <input 
+                        id="role" 
+                        type="text" 
+                        className="w-full p-2 border rounded-md bg-gray-100" 
+                        defaultValue={supabaseAuth.profile?.role || user?.role || ""}
                         disabled
                       />
                     </div>
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button onClick={handleSave}>Save Changes</Button>
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
                 </CardFooter>
               </Card>
             </TabsContent>
@@ -142,6 +189,18 @@ const Settings = () => {
                 </CardFooter>
               </Card>
             </TabsContent>
+
+            {isAdmin && (
+              <>
+                <TabsContent value="users">
+                  <UserManagement />
+                </TabsContent>
+                
+                <TabsContent value="costCenters">
+                  <CostCenterManagement />
+                </TabsContent>
+              </>
+            )}
           </Tabs>
         </div>
       </div>

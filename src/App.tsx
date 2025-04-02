@@ -5,11 +5,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SupabaseAuthProvider } from "@/contexts/SupabaseAuthContext";
 import { Permission } from "@/types/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import SupabaseProtectedRoute from "@/components/SupabaseProtectedRoute";
 
 // Auth Pages
 import Login from "@/pages/Auth/Login";
+import SupabaseLogin from "@/pages/Auth/SupabaseLogin";
 
 // App Pages
 import Dashboard from "@/pages/Dashboard/Dashboard";
@@ -20,7 +23,7 @@ import PurchaseOrderList from "@/pages/PurchaseOrders/PurchaseOrderList";
 import GoodsReceiptList from "@/pages/GoodsReceipt/GoodsReceiptList";
 import VendorList from "@/pages/Vendors/VendorList";
 import CostCenterApprovers from "@/pages/Admin/CostCenterApprovers"; 
-import Settings from "@/pages/Settings/Settings"; // New import
+import Settings from "@/pages/Settings/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -34,81 +37,84 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            
-            {/* Redirect root to dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* Protected Routes */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/purchase-requisitions" element={
-              <ProtectedRoute>
-                <PurchaseRequisitionList />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/purchase-requisitions/new" element={
-              <ProtectedRoute>
-                <PurchaseRequisitionForm />
-              </ProtectedRoute>
-            } />
+    <SupabaseAuthProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<SupabaseLogin />} />
+              <Route path="/legacy-login" element={<Login />} />
+              
+              {/* Redirect root to dashboard */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              
+              {/* Protected Routes */}
+              <Route path="/dashboard" element={
+                <SupabaseProtectedRoute>
+                  <Dashboard />
+                </SupabaseProtectedRoute>
+              } />
+              
+              <Route path="/purchase-requisitions" element={
+                <SupabaseProtectedRoute>
+                  <PurchaseRequisitionList />
+                </SupabaseProtectedRoute>
+              } />
+              
+              <Route path="/purchase-requisitions/new" element={
+                <SupabaseProtectedRoute>
+                  <PurchaseRequisitionForm />
+                </SupabaseProtectedRoute>
+              } />
 
-            <Route path="/purchase-requisitions/:id" element={
-              <ProtectedRoute>
-                <PurchaseRequisitionDetail />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/purchase-orders" element={
-              <ProtectedRoute>
-                <PurchaseOrderList />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/goods-receipt" element={
-              <ProtectedRoute requiredPermissions={[Permission.RECEIVE_GOODS]}>
-                <GoodsReceiptList />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/vendors" element={
-              <ProtectedRoute>
-                <VendorList />
-              </ProtectedRoute>
-            } />
-            
-            {/* Settings Route */}
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            
-            {/* Admin Routes */}
-            <Route path="/admin/approvers" element={
-              <ProtectedRoute requiredPermissions={[Permission.MANAGE_USERS]}>
-                <CostCenterApprovers />
-              </ProtectedRoute>
-            } />
-            
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+              <Route path="/purchase-requisitions/:id" element={
+                <SupabaseProtectedRoute>
+                  <PurchaseRequisitionDetail />
+                </SupabaseProtectedRoute>
+              } />
+              
+              <Route path="/purchase-orders" element={
+                <SupabaseProtectedRoute>
+                  <PurchaseOrderList />
+                </SupabaseProtectedRoute>
+              } />
+              
+              <Route path="/goods-receipt" element={
+                <SupabaseProtectedRoute requiredPermission={Permission.RECEIVE_GOODS}>
+                  <GoodsReceiptList />
+                </SupabaseProtectedRoute>
+              } />
+              
+              <Route path="/vendors" element={
+                <SupabaseProtectedRoute>
+                  <VendorList />
+                </SupabaseProtectedRoute>
+              } />
+              
+              {/* Settings Route */}
+              <Route path="/settings" element={
+                <SupabaseProtectedRoute>
+                  <Settings />
+                </SupabaseProtectedRoute>
+              } />
+              
+              {/* Admin Routes */}
+              <Route path="/admin/approvers" element={
+                <SupabaseProtectedRoute requiredPermission={Permission.MANAGE_USERS}>
+                  <CostCenterApprovers />
+                </SupabaseProtectedRoute>
+              } />
+              
+              {/* Catch-all route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </SupabaseAuthProvider>
   </QueryClientProvider>
 );
 
