@@ -19,7 +19,8 @@ import PurchaseRequisitionDetail from "@/pages/PurchaseRequisitions/PurchaseRequ
 import PurchaseOrderList from "@/pages/PurchaseOrders/PurchaseOrderList";
 import GoodsReceiptList from "@/pages/GoodsReceipt/GoodsReceiptList";
 import VendorList from "@/pages/Vendors/VendorList";
-import CostCenterApprovers from "@/pages/Admin/CostCenterApprovers"; // New import
+import CostCenterApprovers from "@/pages/Admin/CostCenterApprovers"; 
+import Settings from "@/pages/Settings/Settings"; // New import
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -85,6 +86,13 @@ const App = () => (
             <Route path="/vendors" element={
               <ProtectedRoute>
                 <VendorList />
+              </ProtectedRoute>
+            } />
+            
+            {/* Settings Route */}
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             } />
             
