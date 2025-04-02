@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -196,6 +195,7 @@ const PurchaseRequisitionForm = () => {
             onDraftSave={handleDraftSave}
             onSubmit={handleSubmitForApproval}
             isSubmitting={isSubmitting}
+            mode="create"
           />
         </div>
       </form>
