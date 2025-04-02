@@ -14,6 +14,7 @@ import Login from "@/pages/Auth/Login";
 // App Pages
 import Dashboard from "@/pages/Dashboard/Dashboard";
 import PurchaseRequisitionList from "@/pages/PurchaseRequisitions/PurchaseRequisitionList";
+import PurchaseRequisitionForm from "@/pages/PurchaseRequisitions/PurchaseRequisitionForm";
 import PurchaseOrderList from "@/pages/PurchaseOrders/PurchaseOrderList";
 import GoodsReceiptList from "@/pages/GoodsReceipt/GoodsReceiptList";
 import VendorList from "@/pages/Vendors/VendorList";
@@ -52,6 +53,12 @@ const App = () => (
             <Route path="/purchase-requisitions" element={
               <ProtectedRoute>
                 <PurchaseRequisitionList />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/purchase-requisitions/new" element={
+              <ProtectedRoute>
+                <PurchaseRequisitionForm />
               </ProtectedRoute>
             } />
             
