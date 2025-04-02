@@ -11,16 +11,55 @@ import { mockCostCenterApprovers } from './mock-data/cost-center-approvers';
 // Utility function to simulate API latency
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper functions for localStorage persistence
+const loadPRsFromStorage = (): PurchaseRequisition[] => {
+  try {
+    const storedPRs = localStorage.getItem('purchaseRequisitions');
+    return storedPRs ? JSON.parse(storedPRs) : [...mockPRs];
+  } catch (error) {
+    console.error('Failed to load PRs from localStorage:', error);
+    return [...mockPRs];
+  }
+};
+
+const savePRsToStorage = (prs: PurchaseRequisition[]) => {
+  try {
+    localStorage.setItem('purchaseRequisitions', JSON.stringify(prs));
+  } catch (error) {
+    console.error('Failed to save PRs to localStorage:', error);
+  }
+};
+
+// Helper functions for POs localStorage persistence
+const loadPOsFromStorage = (): PurchaseOrder[] => {
+  try {
+    const storedPOs = localStorage.getItem('purchaseOrders');
+    return storedPOs ? JSON.parse(storedPOs) : [...mockPOs];
+  } catch (error) {
+    console.error('Failed to load POs from localStorage:', error);
+    return [...mockPOs];
+  }
+};
+
+const savePOsToStorage = (pos: PurchaseOrder[]) => {
+  try {
+    localStorage.setItem('purchaseOrders', JSON.stringify(pos));
+  } catch (error) {
+    console.error('Failed to save POs to localStorage:', error);
+  }
+};
+
 // Purchase Requisition API
 export const purchaseRequisitionAPI = {
   getAll: async (): Promise<PurchaseRequisition[]> => {
     await delay(300);
-    return [...mockPRs];
+    return loadPRsFromStorage();
   },
   
   getById: async (id: string): Promise<PurchaseRequisition> => {
     await delay(200);
-    const pr = mockPRs.find(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const pr = prs.find(pr => pr.id === id);
     if (!pr) throw new Error('Purchase Requisition not found');
     return {...pr};
   },
@@ -34,31 +73,40 @@ export const purchaseRequisitionAPI = {
       version: 1,
       dateCreated: new Date().toISOString()
     };
-    mockPRs.push(newPR);
+    
+    const prs = loadPRsFromStorage();
+    prs.push(newPR);
+    savePRsToStorage(prs);
+    
     return {...newPR};
   },
   
   update: async (id: string, updates: Partial<PurchaseRequisition>): Promise<PurchaseRequisition> => {
     await delay(300);
-    const index = mockPRs.findIndex(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const index = prs.findIndex(pr => pr.id === id);
     if (index === -1) throw new Error('Purchase Requisition not found');
     
     const updatedPR = {
-      ...mockPRs[index],
+      ...prs[index],
       ...updates,
-      version: mockPRs[index].version + 1
+      version: prs[index].version + 1
     };
-    mockPRs[index] = updatedPR;
+    
+    prs[index] = updatedPR;
+    savePRsToStorage(prs);
+    
     return {...updatedPR};
   },
   
   submit: async (id: string): Promise<PurchaseRequisition> => {
     await delay(300);
-    const index = mockPRs.findIndex(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const index = prs.findIndex(pr => pr.id === id);
     if (index === -1) throw new Error('Purchase Requisition not found');
     
     // Get approvers for this cost center
-    const costCenter = mockPRs[index].costCenter;
+    const costCenter = prs[index].costCenter;
     const approvers = mockCostCenterApprovers.filter(a => a.costCenter === costCenter);
     
     // If no specific approvers, assign to admin users
@@ -77,11 +125,13 @@ export const purchaseRequisitionAPI = {
         }];
     
     const updatedPR = {
-      ...mockPRs[index],
+      ...prs[index],
       status: PRStatus.PENDING_APPROVAL,
       approvers: approversList
     };
-    mockPRs[index] = updatedPR;
+    
+    prs[index] = updatedPR;
+    savePRsToStorage(prs);
     
     // Here we would trigger notifications to approvers
     console.log(`Notification: New PR ${id} requires approval`);
@@ -94,10 +144,11 @@ export const purchaseRequisitionAPI = {
   
   approve: async (id: string, approverId: string, comment?: string): Promise<PurchaseRequisition> => {
     await delay(300);
-    const prIndex = mockPRs.findIndex(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const prIndex = prs.findIndex(pr => pr.id === id);
     if (prIndex === -1) throw new Error('Purchase Requisition not found');
     
-    const pr = {...mockPRs[prIndex]};
+    const pr = {...prs[prIndex]};
     
     // Find the approver
     const approverIndex = pr.approvers.findIndex(a => a.id === approverId);
@@ -118,16 +169,19 @@ export const purchaseRequisitionAPI = {
       console.log(`Notification: PR ${id} has been fully approved`);
     }
     
-    mockPRs[prIndex] = pr;
+    prs[prIndex] = pr;
+    savePRsToStorage(prs);
+    
     return {...pr};
   },
   
   reject: async (id: string, approverId: string, comment: string): Promise<PurchaseRequisition> => {
     await delay(300);
-    const prIndex = mockPRs.findIndex(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const prIndex = prs.findIndex(pr => pr.id === id);
     if (prIndex === -1) throw new Error('Purchase Requisition not found');
     
-    const pr = {...mockPRs[prIndex]};
+    const pr = {...prs[prIndex]};
     
     // Find the approver
     const approverIndex = pr.approvers.findIndex(a => a.id === approverId);
@@ -144,16 +198,19 @@ export const purchaseRequisitionAPI = {
     pr.status = PRStatus.REJECTED;
     console.log(`Notification: PR ${id} has been rejected by ${approverId}`);
     
-    mockPRs[prIndex] = pr;
+    prs[prIndex] = pr;
+    savePRsToStorage(prs);
+    
     return {...pr};
   },
   
   convertToPO: async (id: string): Promise<{ pr: PurchaseRequisition, po: PurchaseOrder }> => {
     await delay(500);
-    const prIndex = mockPRs.findIndex(pr => pr.id === id);
+    const prs = loadPRsFromStorage();
+    const prIndex = prs.findIndex(pr => pr.id === id);
     if (prIndex === -1) throw new Error('Purchase Requisition not found');
     
-    const pr = mockPRs[prIndex];
+    const pr = prs[prIndex];
     if (pr.status !== PRStatus.APPROVED) {
       throw new Error('Only approved PRs can be converted to POs');
     }
@@ -176,14 +233,18 @@ export const purchaseRequisitionAPI = {
       version: 1
     };
     
-    mockPOs.push(newPO);
+    const pos = loadPOsFromStorage();
+    pos.push(newPO);
+    savePOsToStorage(pos);
     
     // Update the PR status
     const updatedPR = {
       ...pr,
       status: PRStatus.CONVERTED_TO_PO
     };
-    mockPRs[prIndex] = updatedPR;
+    
+    prs[prIndex] = updatedPR;
+    savePRsToStorage(prs);
     
     return {
       pr: {...updatedPR},
@@ -196,12 +257,13 @@ export const purchaseRequisitionAPI = {
 export const purchaseOrderAPI = {
   getAll: async (): Promise<PurchaseOrder[]> => {
     await delay(300);
-    return [...mockPOs];
+    return loadPOsFromStorage();
   },
   
   getById: async (id: string): Promise<PurchaseOrder> => {
     await delay(200);
-    const po = mockPOs.find(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const po = pos.find(po => po.id === id);
     if (!po) throw new Error('Purchase Order not found');
     return {...po};
   },
@@ -216,34 +278,45 @@ export const purchaseOrderAPI = {
       dateCreated: new Date().toISOString(),
       version: 1
     };
-    mockPOs.push(newPO);
+    
+    const pos = loadPOsFromStorage();
+    pos.push(newPO);
+    savePOsToStorage(pos);
+    
     return {...newPO};
   },
   
   update: async (id: string, updates: Partial<PurchaseOrder>): Promise<PurchaseOrder> => {
     await delay(300);
-    const index = mockPOs.findIndex(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const index = pos.findIndex(po => po.id === id);
     if (index === -1) throw new Error('Purchase Order not found');
     
     const updatedPO = {
-      ...mockPOs[index],
+      ...pos[index],
       ...updates,
-      version: mockPOs[index].version + 1
+      version: pos[index].version + 1
     };
-    mockPOs[index] = updatedPO;
+    
+    pos[index] = updatedPO;
+    savePOsToStorage(pos);
+    
     return {...updatedPO};
   },
   
   submit: async (id: string): Promise<PurchaseOrder> => {
     await delay(300);
-    const index = mockPOs.findIndex(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const index = pos.findIndex(po => po.id === id);
     if (index === -1) throw new Error('Purchase Order not found');
     
     const updatedPO = {
-      ...mockPOs[index],
+      ...pos[index],
       status: POStatus.PENDING_APPROVAL,
     };
-    mockPOs[index] = updatedPO;
+    
+    pos[index] = updatedPO;
+    savePOsToStorage(pos);
     
     // Here we would trigger notifications to approvers
     console.log(`Notification: New PO ${id} requires approval`);
@@ -253,10 +326,11 @@ export const purchaseOrderAPI = {
   
   approve: async (id: string, approverId: string, comment?: string): Promise<PurchaseOrder> => {
     await delay(300);
-    const poIndex = mockPOs.findIndex(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const poIndex = pos.findIndex(po => po.id === id);
     if (poIndex === -1) throw new Error('Purchase Order not found');
     
-    const po = {...mockPOs[poIndex]};
+    const po = {...pos[poIndex]};
     
     // Find the approver
     const approverIndex = po.approvers.findIndex(a => a.id === approverId);
@@ -277,16 +351,19 @@ export const purchaseOrderAPI = {
       console.log(`Notification: PO ${id} has been fully approved`);
     }
     
-    mockPOs[poIndex] = po;
+    pos[poIndex] = po;
+    savePOsToStorage(pos);
+    
     return {...po};
   },
   
   reject: async (id: string, approverId: string, comment: string): Promise<PurchaseOrder> => {
     await delay(300);
-    const poIndex = mockPOs.findIndex(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const poIndex = pos.findIndex(po => po.id === id);
     if (poIndex === -1) throw new Error('Purchase Order not found');
     
-    const po = {...mockPOs[poIndex]};
+    const po = {...pos[poIndex]};
     
     // Find the approver
     const approverIndex = po.approvers.findIndex(a => a.id === approverId);
@@ -303,28 +380,33 @@ export const purchaseOrderAPI = {
     po.status = POStatus.REJECTED;
     console.log(`Notification: PO ${id} has been rejected by ${approverId}`);
     
-    mockPOs[poIndex] = po;
+    pos[poIndex] = po;
+    savePOsToStorage(pos);
+    
     return {...po};
   },
   
   sendToVendor: async (id: string): Promise<PurchaseOrder> => {
     await delay(300);
-    const poIndex = mockPOs.findIndex(po => po.id === id);
+    const pos = loadPOsFromStorage();
+    const poIndex = pos.findIndex(po => po.id === id);
     if (poIndex === -1) throw new Error('Purchase Order not found');
     
-    if (mockPOs[poIndex].status !== POStatus.APPROVED) {
+    if (pos[poIndex].status !== POStatus.APPROVED) {
       throw new Error('Only approved POs can be sent to vendors');
     }
     
     const updatedPO = {
-      ...mockPOs[poIndex],
+      ...pos[poIndex],
       status: POStatus.SENT_TO_VENDOR
     };
     
     // Here we would send an email to the vendor
     console.log(`Email sent to vendor ${updatedPO.vendor.email} with PO ${updatedPO.poNumber}`);
     
-    mockPOs[poIndex] = updatedPO;
+    pos[poIndex] = updatedPO;
+    savePOsToStorage(pos);
+    
     return {...updatedPO};
   }
 };
