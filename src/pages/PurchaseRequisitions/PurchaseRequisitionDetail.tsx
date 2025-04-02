@@ -1,10 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { purchaseRequisitionAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { purchaseRequisitionAPI, userAPI } from '@/services/api';
 import { PRStatus } from '@/types/p2p';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { Permission } from '@/types/auth';
 
 import {
   Card,
@@ -26,17 +28,133 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  FileText, 
+  CheckCircle, 
+  XCircle, 
+  Loader2, 
+  ShoppingCart,
+  AlertTriangle
+} from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 const PurchaseRequisitionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user, hasPermission } = useAuth();
+  
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
+  const [comment, setComment] = useState('');
   
   const { data: pr, isLoading, error } = useQuery({
     queryKey: ['purchaseRequisition', id],
     queryFn: () => purchaseRequisitionAPI.getById(id || ''),
     enabled: !!id,
+  });
+  
+  // Query to check if user has approval rights for this PR
+  const { data: approvalData } = useQuery({
+    queryKey: ['approvalRights', id, user?.id],
+    queryFn: async () => {
+      if (!user || !pr) return { canApprove: false };
+      
+      // Admins can approve any PR
+      if (hasPermission(Permission.APPROVE_PR)) {
+        return { canApprove: true, isAdmin: true };
+      }
+      
+      // Check if user is an approver for this cost center
+      const approvers = await userAPI.getCostCenterApprovers(pr.costCenter);
+      const userApprover = approvers.find(a => a.userId === user.id);
+      
+      if (!userApprover) return { canApprove: false };
+      
+      // Check if PR amount is within user's approval limit
+      return { 
+        canApprove: pr.totalAmount <= userApprover.approvalLimit,
+        approvalLimit: userApprover.approvalLimit
+      };
+    },
+    enabled: !!user && !!pr,
+  });
+  
+  const approveMutation = useMutation({
+    mutationFn: () => 
+      purchaseRequisitionAPI.approve(id!, user!.id, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisition', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisitions'] });
+      toast({
+        title: "PR Approved",
+        description: "The purchase requisition has been approved successfully.",
+      });
+      setIsApproveDialogOpen(false);
+      setComment('');
+    },
+    onError: (error) => {
+      toast({
+        title: "Approval Failed",
+        description: `Failed to approve PR: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const rejectMutation = useMutation({
+    mutationFn: () => 
+      purchaseRequisitionAPI.reject(id!, user!.id, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisition', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisitions'] });
+      toast({
+        title: "PR Rejected",
+        description: "The purchase requisition has been rejected.",
+      });
+      setIsRejectDialogOpen(false);
+      setComment('');
+    },
+    onError: (error) => {
+      toast({
+        title: "Rejection Failed",
+        description: `Failed to reject PR: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const convertToPOMutation = useMutation({
+    mutationFn: () => 
+      purchaseRequisitionAPI.convertToPO(id!),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisition', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequisitions'] });
+      toast({
+        title: "Converted to PO",
+        description: `Purchase Order ${data.po.poNumber} created successfully.`,
+      });
+      setIsConvertDialogOpen(false);
+      navigate(`/purchase-orders/${data.po.id}`);
+    },
+    onError: (error) => {
+      toast({
+        title: "Conversion Failed",
+        description: `Failed to convert to PO: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
   });
   
   if (isLoading) {
@@ -85,6 +203,11 @@ const PurchaseRequisitionDetail = () => {
       return "Invalid date";
     }
   };
+  
+  const canApprove = (approvalData?.canApprove && pr.status === PRStatus.PENDING_APPROVAL);
+  const canConvertToPO = (pr.status === PRStatus.APPROVED && hasPermission(Permission.CREATE_PO));
+  const isPendingMyApproval = pr.status === PRStatus.PENDING_APPROVAL && 
+    pr.approvers.some(a => a.id === user?.id && a.status === 'PENDING');
 
   return (
     <div className="space-y-6">
@@ -95,12 +218,60 @@ const PurchaseRequisitionDetail = () => {
           </Button>
         </div>
         
-        {pr.status === PRStatus.APPROVED && (
-          <Button>
-            Convert to Purchase Order
-          </Button>
-        )}
+        <div className="flex space-x-2">
+          {canApprove && (
+            <>
+              <Button 
+                variant="destructive"
+                onClick={() => setIsRejectDialogOpen(true)}
+              >
+                <XCircle className="mr-2 h-4 w-4" /> Reject
+              </Button>
+              <Button 
+                variant="default" 
+                onClick={() => setIsApproveDialogOpen(true)}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" /> Approve
+              </Button>
+            </>
+          )}
+          
+          {canConvertToPO && (
+            <Button 
+              onClick={() => setIsConvertDialogOpen(true)}
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" /> Convert to PO
+            </Button>
+          )}
+        </div>
       </div>
+
+      {isPendingMyApproval && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-4 flex items-center">
+          <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+          <p className="text-amber-800">
+            This PR requires your approval. Please review the details and approve or reject.
+          </p>
+        </div>
+      )}
+
+      {approvalData && !approvalData.canApprove && pr.status === PRStatus.PENDING_APPROVAL && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex items-center">
+          <AlertTriangle className="h-5 w-5 text-blue-500 mr-2" />
+          <p className="text-blue-800">
+            This PR is pending approval from an authorized approver.
+          </p>
+        </div>
+      )}
+
+      {approvalData?.approvalLimit && pr.totalAmount > approvalData.approvalLimit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-4 flex items-center">
+          <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+          <p className="text-amber-800">
+            This PR exceeds your approval limit of ${approvalData.approvalLimit.toLocaleString()}.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -235,6 +406,119 @@ const PurchaseRequisitionDetail = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Approve Dialog */}
+      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Purchase Requisition</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to approve this purchase requisition?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium">Comments (optional)</label>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add any comments about your approval decision..."
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}>
+              {approveMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Confirm Approval
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Reject Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Purchase Requisition</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for rejecting this purchase requisition.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium">Reason for Rejection <span className="text-red-500">*</span></label>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Explain why this PR is being rejected..."
+              className="mt-2"
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => rejectMutation.mutate()} 
+              disabled={rejectMutation.isPending || !comment.trim()}
+            >
+              {rejectMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                <>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Confirm Rejection
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Convert to PO Dialog */}
+      <Dialog open={isConvertDialogOpen} onOpenChange={setIsConvertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convert to Purchase Order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to convert this approved purchase requisition to a purchase order?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConvertDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => convertToPOMutation.mutate()} disabled={convertToPOMutation.isPending}>
+              {convertToPOMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Convert to PO
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

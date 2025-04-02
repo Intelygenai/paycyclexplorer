@@ -19,6 +19,7 @@ import PurchaseRequisitionDetail from "@/pages/PurchaseRequisitions/PurchaseRequ
 import PurchaseOrderList from "@/pages/PurchaseOrders/PurchaseOrderList";
 import GoodsReceiptList from "@/pages/GoodsReceipt/GoodsReceiptList";
 import VendorList from "@/pages/Vendors/VendorList";
+import CostCenterApprovers from "@/pages/Admin/CostCenterApprovers"; // New import
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -84,6 +85,13 @@ const App = () => (
             <Route path="/vendors" element={
               <ProtectedRoute>
                 <VendorList />
+              </ProtectedRoute>
+            } />
+            
+            {/* Admin Routes */}
+            <Route path="/admin/approvers" element={
+              <ProtectedRoute requiredPermissions={[Permission.MANAGE_USERS]}>
+                <CostCenterApprovers />
               </ProtectedRoute>
             } />
             

@@ -1,12 +1,12 @@
-
 import { PurchaseRequisition, PRStatus, PurchaseOrder, POStatus, GoodsReceipt, Vendor, LineItem } from '@/types/p2p';
-import { User } from '@/types/auth';
+import { User, Permission } from '@/types/auth';
 
 // Mock data
 import { mockPRs } from './mock-data/purchase-requisitions';
 import { mockPOs } from './mock-data/purchase-orders';
 import { mockVendors } from './mock-data/vendors';
 import { mockGoodsReceipts } from './mock-data/goods-receipts';
+import { mockCostCenterApprovers } from './mock-data/cost-center-approvers';
 
 // Utility function to simulate API latency
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -57,14 +57,37 @@ export const purchaseRequisitionAPI = {
     const index = mockPRs.findIndex(pr => pr.id === id);
     if (index === -1) throw new Error('Purchase Requisition not found');
     
+    // Get approvers for this cost center
+    const costCenter = mockPRs[index].costCenter;
+    const approvers = mockCostCenterApprovers.filter(a => a.costCenter === costCenter);
+    
+    // If no specific approvers, assign to admin users
+    const approversList = approvers.length > 0 
+      ? approvers.map(a => ({
+          id: a.userId,
+          name: a.userName,
+          email: a.userEmail,
+          status: 'PENDING' as const,
+        }))
+      : [{ 
+          id: "approver123", 
+          name: "Jane Smith", 
+          email: "jane.smith@example.com", 
+          status: 'PENDING' as const 
+        }];
+    
     const updatedPR = {
       ...mockPRs[index],
       status: PRStatus.PENDING_APPROVAL,
+      approvers: approversList
     };
     mockPRs[index] = updatedPR;
     
     // Here we would trigger notifications to approvers
     console.log(`Notification: New PR ${id} requires approval`);
+    approversList.forEach(approver => {
+      console.log(`Email sent to ${approver.email} requesting approval for PR ${id}`);
+    });
     
     return {...updatedPR};
   },
@@ -401,7 +424,7 @@ export const vendorAPI = {
   }
 };
 
-// Users API (for demo purposes)
+// Users API
 export const userAPI = {
   getApprovers: async (): Promise<Pick<User, 'id' | 'name' | 'email'>[]> => {
     await delay(300);
@@ -409,5 +432,105 @@ export const userAPI = {
       { id: '3', name: 'Jane Approver', email: 'approver@example.com' },
       { id: '1', name: 'Admin User', email: 'admin@example.com' }
     ];
+  },
+  
+  getCostCenterApprovers: async (costCenter?: string): Promise<{
+    id: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    costCenter: string;
+    approvalLimit: number;
+  }[]> => {
+    await delay(300);
+    if (costCenter) {
+      return mockCostCenterApprovers.filter(a => a.costCenter === costCenter);
+    }
+    return [...mockCostCenterApprovers];
+  },
+  
+  createCostCenterApprover: async (approver: {
+    userId: string; 
+    costCenter: string; 
+    approvalLimit: number;
+  }) => {
+    await delay(500);
+    
+    // Find user details
+    const users = await userAPI.getApprovers();
+    const user = users.find(u => u.id === approver.userId);
+    
+    if (!user) throw new Error('User not found');
+    
+    // Check if this user already has approval rights for this cost center
+    const existing = mockCostCenterApprovers.find(
+      a => a.userId === approver.userId && a.costCenter === approver.costCenter
+    );
+    
+    if (existing) {
+      throw new Error('This user is already an approver for this cost center');
+    }
+    
+    const newApprover = {
+      id: `ca-${Date.now()}`,
+      userId: approver.userId,
+      userName: user.name,
+      userEmail: user.email,
+      costCenter: approver.costCenter,
+      approvalLimit: approver.approvalLimit
+    };
+    
+    mockCostCenterApprovers.push(newApprover);
+    return newApprover;
+  },
+  
+  updateCostCenterApprover: async (approver: {
+    id: string;
+    userId: string; 
+    costCenter: string; 
+    approvalLimit: number;
+  }) => {
+    await delay(500);
+    
+    const index = mockCostCenterApprovers.findIndex(a => a.id === approver.id);
+    if (index === -1) throw new Error('Approver not found');
+    
+    // Find user details
+    const users = await userAPI.getApprovers();
+    const user = users.find(u => u.id === approver.userId);
+    
+    if (!user) throw new Error('User not found');
+    
+    // Check for duplicates (same user, same cost center, different id)
+    const duplicateIndex = mockCostCenterApprovers.findIndex(
+      a => a.id !== approver.id && 
+          a.userId === approver.userId && 
+          a.costCenter === approver.costCenter
+    );
+    
+    if (duplicateIndex !== -1) {
+      throw new Error('This user is already an approver for this cost center');
+    }
+    
+    const updatedApprover = {
+      ...mockCostCenterApprovers[index],
+      costCenter: approver.costCenter,
+      approvalLimit: approver.approvalLimit
+    };
+    
+    mockCostCenterApprovers[index] = updatedApprover;
+    return updatedApprover;
+  },
+  
+  deleteCostCenterApprover: async (id: string) => {
+    await delay(500);
+    
+    const index = mockCostCenterApprovers.findIndex(a => a.id === id);
+    if (index === -1) throw new Error('Approver not found');
+    
+    const approver = mockCostCenterApprovers[index];
+    mockCostCenterApprovers.splice(index, 1);
+    
+    return approver;
   }
 };
