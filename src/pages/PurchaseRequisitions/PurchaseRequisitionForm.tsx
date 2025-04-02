@@ -105,7 +105,7 @@ const PurchaseRequisitionForm = () => {
         department: formValues.department,
         costCenter: formValues.costCenter,
         budgetCode: formValues.budgetCode,
-        status: status,
+        status,
         dateCreated: new Date().toISOString(),
         dateNeeded: selectedDate?.toISOString() || new Date().toISOString(),
         lineItems,
@@ -122,7 +122,7 @@ const PurchaseRequisitionForm = () => {
         version: 1,
       };
       
-      await purchaseRequisitionAPI.create(newPR);
+      const result = await purchaseRequisitionAPI.create(newPR);
       
       toast({
         title: "Success",
