@@ -19,6 +19,13 @@ interface RequisitionDetailsFormProps {
   budgetCodes: string[];
   selectedDate: Date | undefined;
   setSelectedDate: (date: Date | undefined) => void;
+  onFieldChange: (field: string, value: any) => void;
+  formValues: {
+    department: string;
+    costCenter: string;
+    budgetCode: string;
+    justification: string;
+  };
 }
 
 const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
@@ -29,6 +36,8 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
   budgetCodes,
   selectedDate,
   setSelectedDate,
+  onFieldChange,
+  formValues,
 }) => {
   return (
     <Card>
@@ -39,7 +48,10 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="department">Department</Label>
-            <Select defaultValue="" onValueChange={(value) => register("department").onChange({ target: { value } })}>
+            <Select 
+              value={formValues.department} 
+              onValueChange={(value) => onFieldChange('department', value)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select Department" />
               </SelectTrigger>
@@ -54,7 +66,10 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="costCenter">Cost Center</Label>
-            <Select defaultValue="" onValueChange={(value) => register("costCenter").onChange({ target: { value } })}>
+            <Select 
+              value={formValues.costCenter} 
+              onValueChange={(value) => onFieldChange('costCenter', value)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select Cost Center" />
               </SelectTrigger>
@@ -69,7 +84,10 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="budgetCode">Budget Code</Label>
-            <Select defaultValue="" onValueChange={(value) => register("budgetCode").onChange({ target: { value } })}>
+            <Select 
+              value={formValues.budgetCode} 
+              onValueChange={(value) => onFieldChange('budgetCode', value)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select Budget Code" />
               </SelectTrigger>
@@ -103,9 +121,6 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
                   selected={selectedDate}
                   onSelect={(date) => {
                     setSelectedDate(date);
-                    if (date) {
-                      register("dateNeeded").onChange({ target: { value: date } });
-                    }
                   }}
                   initialFocus
                   disabled={(date) => date < new Date()}
@@ -121,7 +136,8 @@ const RequisitionDetailsForm: React.FC<RequisitionDetailsFormProps> = ({
           <Textarea 
             id="justification"
             placeholder="Why is this purchase necessary?"
-            {...register("justification", { required: true })}
+            value={formValues.justification}
+            onChange={(e) => onFieldChange('justification', e.target.value)}
             className="min-h-24"
           />
           {errors.justification && <p className="text-sm text-red-500">Justification is required</p>}

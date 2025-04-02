@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { purchaseRequisitionAPI } from '@/services/api';
@@ -24,10 +24,28 @@ interface FormValues {
 
 const PurchaseRequisitionForm = () => {
   const navigate = useNavigate();
-  const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormValues>();
+  const { register, handleSubmit, getValues, formState: { errors }, setValue } = useForm<FormValues>();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 2 weeks from now as default
   );
+  
+  // Local state for form values to handle controlled components
+  const [formValues, setFormValues] = useState<{
+    department: string;
+    costCenter: string;
+    budgetCode: string;
+    justification: string;
+  }>({
+    department: '',
+    costCenter: '',
+    budgetCode: '',
+    justification: '',
+  });
+
+  const handleFieldChange = (field: string, value: any) => {
+    setFormValues(prev => ({ ...prev, [field]: value }));
+    setValue(field as keyof FormValues, value);
+  };
   
   const {
     lineItems,
@@ -58,19 +76,21 @@ const PurchaseRequisitionForm = () => {
     queryFn: () => ['Office Supplies', 'IT Equipment', 'Software', 'Furniture', 'Services', 'Travel', 'Other'],
   });
 
-  const createPurchaseRequisition = async (status: PRStatus) => {
-    if (!validateLineItems()) {
-      return;
-    }
-
-    const formValues = getValues();
-    
+  const validateForm = () => {
+    // Check all required fields
     if (!formValues.department || !formValues.costCenter || !formValues.budgetCode || !selectedDate || !formValues.justification) {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields",
         variant: "destructive",
       });
+      return false;
+    }
+    return true;
+  };
+
+  const createPurchaseRequisition = async (status: PRStatus) => {
+    if (!validateLineItems() || !validateForm()) {
       return;
     }
     
@@ -87,7 +107,7 @@ const PurchaseRequisitionForm = () => {
         budgetCode: formValues.budgetCode,
         status: status,
         dateCreated: new Date().toISOString(),
-        dateNeeded: selectedDate.toISOString(),
+        dateNeeded: selectedDate?.toISOString() || new Date().toISOString(),
         lineItems,
         justification: formValues.justification,
         totalAmount: calculateTotal(),
@@ -142,6 +162,8 @@ const PurchaseRequisitionForm = () => {
             budgetCodes={budgetCodes}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            onFieldChange={handleFieldChange}
+            formValues={formValues}
           />
 
           <LineItemsForm 
