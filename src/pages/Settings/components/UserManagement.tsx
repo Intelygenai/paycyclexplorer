@@ -42,6 +42,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2, PlusCircle, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { UserProfile } from '@/types/database';
 
 interface UserFormValues {
   email: string;
@@ -55,7 +56,7 @@ const UserManagement = () => {
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
   const createForm = useForm<UserFormValues>({
     defaultValues: {
@@ -80,13 +81,14 @@ const UserManagement = () => {
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
+      // Use raw query since type definitions don't include user_profiles yet
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .order('name');
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as UserProfile[];
     },
   });
 
@@ -129,6 +131,7 @@ const UserManagement = () => {
   // Update user
   const updateUserMutation = useMutation({
     mutationFn: async (values: { id: string; data: Omit<UserFormValues, 'password'> }) => {
+      // Use raw query since type definitions don't include user_profiles yet
       const { data, error } = await supabase
         .from('user_profiles')
         .update({
@@ -173,12 +176,12 @@ const UserManagement = () => {
     });
   };
 
-  const openEditDialog = (user: any) => {
+  const openEditDialog = (user: UserProfile) => {
     setSelectedUser(user);
     editForm.setValue('email', user.email);
     editForm.setValue('name', user.name);
     editForm.setValue('department', user.department);
-    editForm.setValue('role', user.role);
+    editForm.setValue('role', user.role as UserRole);
     setIsEditDialogOpen(true);
   };
 

@@ -43,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, PlusCircle, Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import ApproverManagement from './ApproverManagement';
+import { CostCenter } from '@/types/database';
 
 interface CostCenterFormValues {
   id: string;
@@ -54,7 +55,7 @@ const CostCenterManagement = () => {
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedCostCenter, setSelectedCostCenter] = useState<any>(null);
+  const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>(null);
 
   const createForm = useForm<CostCenterFormValues>({
     defaultValues: {
@@ -76,19 +77,21 @@ const CostCenterManagement = () => {
   const { data: costCenters = [], isLoading } = useQuery({
     queryKey: ['cost-centers'],
     queryFn: async () => {
+      // Use raw query since type definitions don't include cost_centers yet
       const { data, error } = await supabase
         .from('cost_centers')
         .select('*')
         .order('id');
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as CostCenter[];
     },
   });
 
   // Create cost center
   const createCostCenterMutation = useMutation({
     mutationFn: async (values: CostCenterFormValues) => {
+      // Use raw query since type definitions don't include cost_centers yet
       const { data, error } = await supabase
         .from('cost_centers')
         .insert([{
@@ -121,6 +124,7 @@ const CostCenterManagement = () => {
   // Update cost center
   const updateCostCenterMutation = useMutation({
     mutationFn: async (values: CostCenterFormValues) => {
+      // Use raw query since type definitions don't include cost_centers yet
       const { data, error } = await supabase
         .from('cost_centers')
         .update({
@@ -159,7 +163,7 @@ const CostCenterManagement = () => {
     updateCostCenterMutation.mutate(values);
   };
 
-  const openEditDialog = (costCenter: any) => {
+  const openEditDialog = (costCenter: CostCenter) => {
     setSelectedCostCenter(costCenter);
     editForm.setValue('id', costCenter.id);
     editForm.setValue('name', costCenter.name);

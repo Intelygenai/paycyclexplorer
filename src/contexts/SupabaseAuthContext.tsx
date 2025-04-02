@@ -3,21 +3,13 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Permission } from '@/types/auth';
+import { UserProfile } from '@/types/database';
 
 interface AuthState {
   user: User | null;
   profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
-}
-
-interface UserProfile {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  department: string;
-  permissions: Permission[];
 }
 
 interface SupabaseAuthContextType extends AuthState {
@@ -93,6 +85,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      // Use raw query since the type definitions don't include the user_profiles table yet
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -114,9 +107,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           id: data.id,
           email: data.email,
           name: data.name,
-          role: data.role as UserRole,
+          role: data.role,
           department: data.department,
-          permissions: getRolePermissions(data.role as UserRole)
+          created_at: data.created_at,
+          updated_at: data.updated_at
         };
 
         setState(prev => ({ 
@@ -189,7 +183,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const hasPermission = (permission: Permission): boolean => {
-    return state.profile?.permissions.includes(permission) || false;
+    return state.profile?.role === UserRole.ADMIN || 
+           state.profile ? getRolePermissions(state.profile.role as UserRole).includes(permission) : false;
   };
 
   return (

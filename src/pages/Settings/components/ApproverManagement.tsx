@@ -41,6 +41,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2, PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { CostCenter, UserProfile } from '@/types/database';
 
 interface ApproverFormValues {
   userId: string;
@@ -49,14 +50,24 @@ interface ApproverFormValues {
 }
 
 interface ApproverManagementProps {
-  costCenters: any[];
+  costCenters: CostCenter[];
+}
+
+interface CostCenterApprover {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  cost_center: string;
+  approval_limit: number;
+  created_at?: string;
 }
 
 const ApproverManagement = ({ costCenters = [] }: ApproverManagementProps) => {
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedApprover, setSelectedApprover] = useState<any>(null);
+  const [selectedApprover, setSelectedApprover] = useState<CostCenterApprover | null>(null);
 
   const createForm = useForm<ApproverFormValues>({
     defaultValues: {
@@ -90,7 +101,7 @@ const ApproverManagement = ({ costCenters = [] }: ApproverManagementProps) => {
         `);
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as CostCenterApprover[];
     },
   });
 
@@ -98,13 +109,14 @@ const ApproverManagement = ({ costCenters = [] }: ApproverManagementProps) => {
   const { data: eligibleUsers = [], isLoading: isLoadingUsers } = useQuery({
     queryKey: ['eligible-approvers'],
     queryFn: async () => {
+      // Use raw query since type definitions don't include user_profiles yet
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id, name, email, role')
         .in('role', ['ADMIN', 'APPROVER']);
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as UserProfile[];
     },
   });
 
@@ -115,9 +127,13 @@ const ApproverManagement = ({ costCenters = [] }: ApproverManagementProps) => {
       const user = eligibleUsers.find(u => u.id === values.userId);
       if (!user) throw new Error("User not found");
       
+      // Generate a unique ID for the approver
+      const id = `approver-${Date.now()}`;
+      
       const { data, error } = await supabase
         .from('cost_center_approvers')
         .insert([{
+          id: id,
           user_id: values.userId,
           user_name: user.name,
           user_email: user.email,
@@ -225,7 +241,7 @@ const ApproverManagement = ({ costCenters = [] }: ApproverManagementProps) => {
     }
   };
 
-  const openEditDialog = (approver: any) => {
+  const openEditDialog = (approver: CostCenterApprover) => {
     setSelectedApprover(approver);
     editForm.setValue('userId', approver.user_id);
     editForm.setValue('costCenter', approver.cost_center);
