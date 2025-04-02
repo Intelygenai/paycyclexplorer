@@ -2,8 +2,9 @@
 import { PurchaseRequisition, PRStatus, PurchaseOrder, POStatus, GoodsReceipt, Vendor, LineItem } from '@/types/p2p';
 import { User, Permission } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
 
-// Mock data for initial development (will be replaced by Supabase)
+// Mock data for fallback/development
 import { mockPRs } from './mock-data/purchase-requisitions';
 import { mockPOs } from './mock-data/purchase-orders';
 import { mockVendors } from './mock-data/vendors';
@@ -26,6 +27,8 @@ export const purchaseRequisitionAPI = {
         `);
       
       if (error) throw error;
+      
+      if (!prs) return [...mockPRs];
       
       // Transform the data to match the PurchaseRequisition type
       return prs.map(pr => {
@@ -88,6 +91,8 @@ export const purchaseRequisitionAPI = {
         .single();
       
       if (error) throw error;
+      
+      if (!pr) throw new Error('Purchase Requisition not found');
       
       // Transform the data to match the PurchaseRequisition type
       const lineItems = pr.line_items || [];
@@ -159,8 +164,7 @@ export const purchaseRequisitionAPI = {
           total_amount: pr.totalAmount,
           version: 1
         })
-        .select()
-        .single();
+        .select();
       
       if (prError) throw prError;
       
@@ -342,7 +346,7 @@ export const purchaseRequisitionAPI = {
       if (approversError) throw approversError;
       
       // If no specific approvers, assign to admin users
-      const approversList = costCenterApprovers.length > 0 
+      const approversList = costCenterApprovers && costCenterApprovers.length > 0 
         ? costCenterApprovers.map(a => ({
             id: a.user_id,
             name: a.user_name,
@@ -366,11 +370,10 @@ export const purchaseRequisitionAPI = {
     } catch (error) {
       console.error('Error submitting PR in Supabase:', error);
       // Fallback to mock implementation
-      const prs = mockPRs;
-      const index = prs.findIndex(pr => pr.id === id);
+      const index = mockPRs.findIndex(pr => pr.id === id);
       if (index === -1) throw new Error('Purchase Requisition not found');
       
-      const costCenter = prs[index].costCenter;
+      const costCenter = mockPRs[index].costCenter;
       const approvers = mockCostCenterApprovers.filter(a => a.costCenter === costCenter);
       
       const approversList = approvers.length > 0 
@@ -388,12 +391,12 @@ export const purchaseRequisitionAPI = {
           }];
       
       const updatedPR = {
-        ...prs[index],
+        ...mockPRs[index],
         status: PRStatus.PENDING_APPROVAL,
         approvers: approversList
       };
       
-      prs[index] = updatedPR;
+      mockPRs[index] = updatedPR;
       
       console.log(`Notification: New PR ${id} requires approval`);
       approversList.forEach(approver => {
@@ -436,11 +439,10 @@ export const purchaseRequisitionAPI = {
     } catch (error) {
       console.error('Error approving PR in Supabase:', error);
       // Fallback to mock implementation
-      const prs = mockPRs;
-      const prIndex = prs.findIndex(pr => pr.id === id);
+      const prIndex = mockPRs.findIndex(pr => pr.id === id);
       if (prIndex === -1) throw new Error('Purchase Requisition not found');
       
-      const pr = {...prs[prIndex]};
+      const pr = {...mockPRs[prIndex]};
       
       const approverIndex = pr.approvers.findIndex(a => a.id === approverId);
       if (approverIndex === -1) throw new Error('Approver not found for this PR');
@@ -458,7 +460,7 @@ export const purchaseRequisitionAPI = {
         console.log(`Notification: PR ${id} has been fully approved`);
       }
       
-      prs[prIndex] = pr;
+      mockPRs[prIndex] = pr;
       
       return {...pr};
     }
@@ -493,11 +495,10 @@ export const purchaseRequisitionAPI = {
     } catch (error) {
       console.error('Error rejecting PR in Supabase:', error);
       // Fallback to mock implementation
-      const prs = mockPRs;
-      const prIndex = prs.findIndex(pr => pr.id === id);
+      const prIndex = mockPRs.findIndex(pr => pr.id === id);
       if (prIndex === -1) throw new Error('Purchase Requisition not found');
       
-      const pr = {...prs[prIndex]};
+      const pr = {...mockPRs[prIndex]};
       
       const approverIndex = pr.approvers.findIndex(a => a.id === approverId);
       if (approverIndex === -1) throw new Error('Approver not found for this PR');
@@ -512,7 +513,7 @@ export const purchaseRequisitionAPI = {
       pr.status = PRStatus.REJECTED;
       console.log(`Notification: PR ${id} has been rejected by ${approverId}`);
       
-      prs[prIndex] = pr;
+      mockPRs[prIndex] = pr;
       
       return {...pr};
     }
@@ -520,262 +521,431 @@ export const purchaseRequisitionAPI = {
   
   convertToPO: async (id: string): Promise<{ pr: PurchaseRequisition, po: PurchaseOrder }> => {
     await delay(500);
-    const prs = loadPRsFromStorage();
-    const prIndex = prs.findIndex(pr => pr.id === id);
-    if (prIndex === -1) throw new Error('Purchase Requisition not found');
     
-    const pr = prs[prIndex];
-    if (pr.status !== PRStatus.APPROVED) {
-      throw new Error('Only approved PRs can be converted to POs');
+    try {
+      // Get the PR
+      const pr = await purchaseRequisitionAPI.getById(id);
+      
+      if (pr.status !== PRStatus.APPROVED) {
+        throw new Error('Only approved PRs can be converted to POs');
+      }
+      
+      // Get a vendor - in a real implementation, the vendor would be selected
+      const { data: vendors, error: vendorError } = await supabase
+        .from('vendors')
+        .select('*')
+        .limit(1);
+      
+      if (vendorError || !vendors || vendors.length === 0) throw new Error('No vendors available');
+      
+      const vendor = vendors[0];
+      
+      // Create a PO from the PR
+      const poId = `PO-${Date.now()}`;
+      const poNumber = `PO-${Date.now().toString().substring(6)}`;
+      
+      const { error: poError } = await supabase
+        .from('purchase_orders')
+        .insert({
+          id: poId,
+          pr_id: pr.id,
+          po_number: poNumber,
+          vendor_id: vendor.id,
+          status: POStatus.DRAFT,
+          required_date: pr.dateNeeded,
+          shipping_address: '123 Warehouse St, Business Park',
+          billing_address: '456 Finance Ave, Business District',
+          currency: 'USD',
+          total_amount: pr.totalAmount,
+          version: 1
+        });
+      
+      if (poError) throw poError;
+      
+      // Copy line items to the PO
+      const poLineItems = pr.lineItems.map(item => ({
+        ...item,
+        po_id: poId,
+        pr_id: null
+      }));
+      
+      const lineItemsData = poLineItems.map(item => ({
+        id: `li-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        po_id: poId,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        total_price: item.totalPrice,
+        category: item.category,
+        delivery_date: item.deliveryDate,
+        notes: item.notes
+      }));
+      
+      const { error: lineItemsError } = await supabase
+        .from('line_items')
+        .insert(lineItemsData);
+      
+      if (lineItemsError) throw lineItemsError;
+      
+      // Update PR status
+      const { error: updateError } = await supabase
+        .from('purchase_requisitions')
+        .update({ status: PRStatus.CONVERTED_TO_PO })
+        .eq('id', id);
+      
+      if (updateError) throw updateError;
+      
+      // Construct PO object for return
+      const po: PurchaseOrder = {
+        id: poId,
+        prId: pr.id,
+        poNumber,
+        vendor: {
+          id: vendor.id,
+          name: vendor.name,
+          contactPerson: vendor.contact_person,
+          email: vendor.email,
+          phone: vendor.phone,
+          address: vendor.address,
+          taxId: vendor.tax_id,
+          paymentTerms: vendor.payment_terms,
+          category: vendor.category,
+          status: vendor.status as 'ACTIVE' | 'INACTIVE',
+          createdAt: vendor.created_at,
+          updatedAt: vendor.updated_at
+        },
+        status: POStatus.DRAFT,
+        dateCreated: new Date().toISOString(),
+        requiredDate: pr.dateNeeded,
+        lineItems: pr.lineItems,
+        shippingAddress: '123 Warehouse St, Business Park',
+        billingAddress: '456 Finance Ave, Business District',
+        currency: 'USD',
+        totalAmount: pr.totalAmount,
+        approvers: [],
+        version: 1
+      };
+      
+      // Update the PR with new status
+      pr.status = PRStatus.CONVERTED_TO_PO;
+      
+      return {
+        pr,
+        po
+      };
+    } catch (error) {
+      console.error('Error converting PR to PO:', error);
+      // Fallback to mock implementation
+      const prIndex = mockPRs.findIndex(pr => pr.id === id);
+      if (prIndex === -1) throw new Error('Purchase Requisition not found');
+      
+      const pr = mockPRs[prIndex];
+      if (pr.status !== PRStatus.APPROVED) {
+        throw new Error('Only approved PRs can be converted to POs');
+      }
+      
+      // Create a PO from the PR
+      const newPO: PurchaseOrder = {
+        id: `PO-${Date.now()}`,
+        prId: pr.id,
+        poNumber: `PO-${Date.now().toString().substring(6)}`,
+        vendor: mockVendors[0],
+        status: POStatus.DRAFT,
+        dateCreated: new Date().toISOString(),
+        requiredDate: pr.dateNeeded,
+        lineItems: [...pr.lineItems],
+        shippingAddress: '123 Warehouse St, Business Park',
+        billingAddress: '456 Finance Ave, Business District',
+        currency: 'USD',
+        totalAmount: pr.totalAmount,
+        approvers: [],
+        version: 1
+      };
+      
+      mockPOs.push(newPO);
+      
+      // Update the PR status
+      const updatedPR = {
+        ...pr,
+        status: PRStatus.CONVERTED_TO_PO
+      };
+      
+      mockPRs[prIndex] = updatedPR;
+      
+      return {
+        pr: {...updatedPR},
+        po: {...newPO}
+      };
     }
-    
-    // Create a PO from the PR
-    const newPO: PurchaseOrder = {
-      id: `PO-${Date.now()}`,
-      prId: pr.id,
-      poNumber: `PO-${Date.now().toString().substring(6)}`,
-      vendor: mockVendors[0], // This would be selected in real implementation
-      status: POStatus.DRAFT,
-      dateCreated: new Date().toISOString(),
-      requiredDate: pr.dateNeeded,
-      lineItems: [...pr.lineItems],
-      shippingAddress: '123 Warehouse St, Business Park',
-      billingAddress: '456 Finance Ave, Business District',
-      currency: 'USD',
-      totalAmount: pr.totalAmount,
-      approvers: [],
-      version: 1
-    };
-    
-    const pos = loadPOsFromStorage();
-    pos.push(newPO);
-    savePOsToStorage(pos);
-    
-    // Update the PR status
-    const updatedPR = {
-      ...pr,
-      status: PRStatus.CONVERTED_TO_PO
-    };
-    
-    prs[prIndex] = updatedPR;
-    savePRsToStorage(prs);
-    
-    return {
-      pr: {...updatedPR},
-      po: {...newPO}
-    };
   }
 };
 
 // Purchase Order API
 export const purchaseOrderAPI = {
   getAll: async (): Promise<PurchaseOrder[]> => {
-    await delay(300);
-    return loadPOsFromStorage();
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      return [...mockPOs];
+    } catch (error) {
+      console.error('Error fetching POs:', error);
+      return [...mockPOs];
+    }
   },
   
   getById: async (id: string): Promise<PurchaseOrder> => {
-    await delay(200);
-    const pos = loadPOsFromStorage();
-    const po = pos.find(po => po.id === id);
-    if (!po) throw new Error('Purchase Order not found');
-    return {...po};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(200);
+      const po = mockPOs.find(po => po.id === id);
+      if (!po) throw new Error('Purchase Order not found');
+      return {...po};
+    } catch (error) {
+      console.error('Error fetching PO:', error);
+      throw error;
+    }
   },
   
   create: async (po: Omit<PurchaseOrder, 'id' | 'poNumber'>): Promise<PurchaseOrder> => {
-    await delay(500);
-    const newPO: PurchaseOrder = {
-      ...po,
-      id: `PO-${Date.now()}`,
-      poNumber: `PO-${Date.now().toString().substring(6)}`,
-      status: POStatus.DRAFT,
-      dateCreated: new Date().toISOString(),
-      version: 1
-    };
-    
-    const pos = loadPOsFromStorage();
-    pos.push(newPO);
-    savePOsToStorage(pos);
-    
-    return {...newPO};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      const newPO: PurchaseOrder = {
+        ...po,
+        id: `PO-${Date.now()}`,
+        poNumber: `PO-${Date.now().toString().substring(6)}`,
+        status: POStatus.DRAFT,
+        dateCreated: new Date().toISOString(),
+        version: 1
+      };
+      
+      mockPOs.push(newPO);
+      return {...newPO};
+    } catch (error) {
+      console.error('Error creating PO:', error);
+      throw error;
+    }
   },
   
   update: async (id: string, updates: Partial<PurchaseOrder>): Promise<PurchaseOrder> => {
-    await delay(300);
-    const pos = loadPOsFromStorage();
-    const index = pos.findIndex(po => po.id === id);
-    if (index === -1) throw new Error('Purchase Order not found');
-    
-    const updatedPO = {
-      ...pos[index],
-      ...updates,
-      version: pos[index].version + 1
-    };
-    
-    pos[index] = updatedPO;
-    savePOsToStorage(pos);
-    
-    return {...updatedPO};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const index = mockPOs.findIndex(po => po.id === id);
+      if (index === -1) throw new Error('Purchase Order not found');
+      
+      const updatedPO = {
+        ...mockPOs[index],
+        ...updates,
+        version: mockPOs[index].version + 1
+      };
+      
+      mockPOs[index] = updatedPO;
+      return {...updatedPO};
+    } catch (error) {
+      console.error('Error updating PO:', error);
+      throw error;
+    }
   },
   
   submit: async (id: string): Promise<PurchaseOrder> => {
-    await delay(300);
-    const pos = loadPOsFromStorage();
-    const index = pos.findIndex(po => po.id === id);
-    if (index === -1) throw new Error('Purchase Order not found');
-    
-    const updatedPO = {
-      ...pos[index],
-      status: POStatus.PENDING_APPROVAL,
-    };
-    
-    pos[index] = updatedPO;
-    savePOsToStorage(pos);
-    
-    // Here we would trigger notifications to approvers
-    console.log(`Notification: New PO ${id} requires approval`);
-    
-    return {...updatedPO};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const index = mockPOs.findIndex(po => po.id === id);
+      if (index === -1) throw new Error('Purchase Order not found');
+      
+      const updatedPO = {
+        ...mockPOs[index],
+        status: POStatus.PENDING_APPROVAL,
+      };
+      
+      mockPOs[index] = updatedPO;
+      
+      // Here we would trigger notifications to approvers
+      console.log(`Notification: New PO ${id} requires approval`);
+      
+      return {...updatedPO};
+    } catch (error) {
+      console.error('Error submitting PO:', error);
+      throw error;
+    }
   },
   
   approve: async (id: string, approverId: string, comment?: string): Promise<PurchaseOrder> => {
-    await delay(300);
-    const pos = loadPOsFromStorage();
-    const poIndex = pos.findIndex(po => po.id === id);
-    if (poIndex === -1) throw new Error('Purchase Order not found');
-    
-    const po = {...pos[poIndex]};
-    
-    // Find the approver
-    const approverIndex = po.approvers.findIndex(a => a.id === approverId);
-    if (approverIndex === -1) throw new Error('Approver not found for this PO');
-    
-    // Update approver status
-    po.approvers[approverIndex] = {
-      ...po.approvers[approverIndex],
-      status: 'APPROVED',
-      comment: comment,
-      date: new Date().toISOString()
-    };
-    
-    // Check if all approvers have approved
-    const allApproved = po.approvers.every(a => a.status === 'APPROVED');
-    if (allApproved) {
-      po.status = POStatus.APPROVED;
-      console.log(`Notification: PO ${id} has been fully approved`);
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const poIndex = mockPOs.findIndex(po => po.id === id);
+      if (poIndex === -1) throw new Error('Purchase Order not found');
+      
+      const po = {...mockPOs[poIndex]};
+      
+      // Find the approver
+      const approverIndex = po.approvers.findIndex(a => a.id === approverId);
+      if (approverIndex === -1) throw new Error('Approver not found for this PO');
+      
+      // Update approver status
+      po.approvers[approverIndex] = {
+        ...po.approvers[approverIndex],
+        status: 'APPROVED',
+        comment: comment,
+        date: new Date().toISOString()
+      };
+      
+      // Check if all approvers have approved
+      const allApproved = po.approvers.every(a => a.status === 'APPROVED');
+      if (allApproved) {
+        po.status = POStatus.APPROVED;
+        console.log(`Notification: PO ${id} has been fully approved`);
+      }
+      
+      mockPOs[poIndex] = po;
+      
+      return {...po};
+    } catch (error) {
+      console.error('Error approving PO:', error);
+      throw error;
     }
-    
-    pos[poIndex] = po;
-    savePOsToStorage(pos);
-    
-    return {...po};
   },
   
   reject: async (id: string, approverId: string, comment: string): Promise<PurchaseOrder> => {
-    await delay(300);
-    const pos = loadPOsFromStorage();
-    const poIndex = pos.findIndex(po => po.id === id);
-    if (poIndex === -1) throw new Error('Purchase Order not found');
-    
-    const po = {...pos[poIndex]};
-    
-    // Find the approver
-    const approverIndex = po.approvers.findIndex(a => a.id === approverId);
-    if (approverIndex === -1) throw new Error('Approver not found for this PO');
-    
-    // Update approver status
-    po.approvers[approverIndex] = {
-      ...po.approvers[approverIndex],
-      status: 'REJECTED',
-      comment: comment,
-      date: new Date().toISOString()
-    };
-    
-    po.status = POStatus.REJECTED;
-    console.log(`Notification: PO ${id} has been rejected by ${approverId}`);
-    
-    pos[poIndex] = po;
-    savePOsToStorage(pos);
-    
-    return {...po};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const poIndex = mockPOs.findIndex(po => po.id === id);
+      if (poIndex === -1) throw new Error('Purchase Order not found');
+      
+      const po = {...mockPOs[poIndex]};
+      
+      // Find the approver
+      const approverIndex = po.approvers.findIndex(a => a.id === approverId);
+      if (approverIndex === -1) throw new Error('Approver not found for this PO');
+      
+      // Update approver status
+      po.approvers[approverIndex] = {
+        ...po.approvers[approverIndex],
+        status: 'REJECTED',
+        comment: comment,
+        date: new Date().toISOString()
+      };
+      
+      po.status = POStatus.REJECTED;
+      console.log(`Notification: PO ${id} has been rejected by ${approverId}`);
+      
+      mockPOs[poIndex] = po;
+      
+      return {...po};
+    } catch (error) {
+      console.error('Error rejecting PO:', error);
+      throw error;
+    }
   },
   
   sendToVendor: async (id: string): Promise<PurchaseOrder> => {
-    await delay(300);
-    const pos = loadPOsFromStorage();
-    const poIndex = pos.findIndex(po => po.id === id);
-    if (poIndex === -1) throw new Error('Purchase Order not found');
-    
-    if (pos[poIndex].status !== POStatus.APPROVED) {
-      throw new Error('Only approved POs can be sent to vendors');
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const poIndex = mockPOs.findIndex(po => po.id === id);
+      if (poIndex === -1) throw new Error('Purchase Order not found');
+      
+      if (mockPOs[poIndex].status !== POStatus.APPROVED) {
+        throw new Error('Only approved POs can be sent to vendors');
+      }
+      
+      const updatedPO = {
+        ...mockPOs[poIndex],
+        status: POStatus.SENT_TO_VENDOR
+      };
+      
+      // Here we would send an email to the vendor
+      console.log(`Email sent to vendor ${updatedPO.vendor.email} with PO ${updatedPO.poNumber}`);
+      
+      mockPOs[poIndex] = updatedPO;
+      
+      return {...updatedPO};
+    } catch (error) {
+      console.error('Error sending PO to vendor:', error);
+      throw error;
     }
-    
-    const updatedPO = {
-      ...pos[poIndex],
-      status: POStatus.SENT_TO_VENDOR
-    };
-    
-    // Here we would send an email to the vendor
-    console.log(`Email sent to vendor ${updatedPO.vendor.email} with PO ${updatedPO.poNumber}`);
-    
-    pos[poIndex] = updatedPO;
-    savePOsToStorage(pos);
-    
-    return {...updatedPO};
   }
 };
 
 // Goods Receipt API
 export const goodsReceiptAPI = {
   getAll: async (): Promise<GoodsReceipt[]> => {
-    await delay(300);
-    return [...mockGoodsReceipts];
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      return [...mockGoodsReceipts];
+    } catch (error) {
+      console.error('Error fetching goods receipts:', error);
+      return [...mockGoodsReceipts];
+    }
   },
   
   getById: async (id: string): Promise<GoodsReceipt> => {
-    await delay(200);
-    const receipt = mockGoodsReceipts.find(gr => gr.id === id);
-    if (!receipt) throw new Error('Goods Receipt not found');
-    return {...receipt};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(200);
+      const receipt = mockGoodsReceipts.find(gr => gr.id === id);
+      if (!receipt) throw new Error('Goods Receipt not found');
+      return {...receipt};
+    } catch (error) {
+      console.error('Error fetching goods receipt:', error);
+      throw error;
+    }
   },
   
   create: async (receipt: Omit<GoodsReceipt, 'id' | 'receiptNumber'>): Promise<GoodsReceipt> => {
-    await delay(500);
-    const newReceipt: GoodsReceipt = {
-      ...receipt,
-      id: `GR-${Date.now()}`,
-      receiptNumber: `GR-${Date.now().toString().substring(6)}`,
-      dateReceived: new Date().toISOString(),
-    };
-    mockGoodsReceipts.push(newReceipt);
-    
-    // Update the PO status based on receipt
-    const poIndex = mockPOs.findIndex(po => po.id === receipt.poId);
-    if (poIndex !== -1) {
-      const allItemsReceived = receipt.lineItems.every(
-        item => item.quantityReceived >= item.quantityOrdered
-      );
-      
-      mockPOs[poIndex] = {
-        ...mockPOs[poIndex],
-        status: allItemsReceived ? POStatus.COMPLETED : POStatus.PARTIALLY_FULFILLED
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      const newReceipt: GoodsReceipt = {
+        ...receipt,
+        id: `GR-${Date.now()}`,
+        receiptNumber: `GR-${Date.now().toString().substring(6)}`,
+        dateReceived: new Date().toISOString(),
       };
+      mockGoodsReceipts.push(newReceipt);
+      
+      // Update the PO status based on receipt
+      const poIndex = mockPOs.findIndex(po => po.id === receipt.poId);
+      if (poIndex !== -1) {
+        const allItemsReceived = receipt.lineItems.every(
+          item => item.quantityReceived >= item.quantityOrdered
+        );
+        
+        mockPOs[poIndex] = {
+          ...mockPOs[poIndex],
+          status: allItemsReceived ? POStatus.COMPLETED : POStatus.PARTIALLY_FULFILLED
+        };
+      }
+      
+      return {...newReceipt};
+    } catch (error) {
+      console.error('Error creating goods receipt:', error);
+      throw error;
     }
-    
-    return {...newReceipt};
   },
   
   update: async (id: string, updates: Partial<GoodsReceipt>): Promise<GoodsReceipt> => {
-    await delay(300);
-    const index = mockGoodsReceipts.findIndex(gr => gr.id === id);
-    if (index === -1) throw new Error('Goods Receipt not found');
-    
-    const updatedReceipt = {
-      ...mockGoodsReceipts[index],
-      ...updates
-    };
-    mockGoodsReceipts[index] = updatedReceipt;
-    return {...updatedReceipt};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const index = mockGoodsReceipts.findIndex(gr => gr.id === id);
+      if (index === -1) throw new Error('Goods Receipt not found');
+      
+      const updatedReceipt = {
+        ...mockGoodsReceipts[index],
+        ...updates
+      };
+      mockGoodsReceipts[index] = updatedReceipt;
+      return {...updatedReceipt};
+    } catch (error) {
+      console.error('Error updating goods receipt:', error);
+      throw error;
+    }
   }
 };
 
@@ -789,6 +959,8 @@ export const vendorAPI = {
       
       if (error) throw error;
       
+      if (!vendors) return [...mockVendors];
+      
       // Transform the data to match the Vendor type
       return vendors.map(v => ({
         id: v.id,
@@ -800,7 +972,7 @@ export const vendorAPI = {
         taxId: v.tax_id,
         paymentTerms: v.payment_terms,
         category: v.category,
-        status: v.status,
+        status: v.status as 'ACTIVE' | 'INACTIVE',
         createdAt: v.created_at,
         updatedAt: v.updated_at
       }));
@@ -812,36 +984,54 @@ export const vendorAPI = {
   },
   
   getById: async (id: string): Promise<Vendor> => {
-    await delay(200);
-    const vendor = mockVendors.find(v => v.id === id);
-    if (!vendor) throw new Error('Vendor not found');
-    return {...vendor};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(200);
+      const vendor = mockVendors.find(v => v.id === id);
+      if (!vendor) throw new Error('Vendor not found');
+      return {...vendor};
+    } catch (error) {
+      console.error('Error fetching vendor:', error);
+      throw error;
+    }
   },
   
   create: async (vendor: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Vendor> => {
-    await delay(500);
-    const newVendor: Vendor = {
-      ...vendor,
-      id: `V-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    mockVendors.push(newVendor);
-    return {...newVendor};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      const newVendor: Vendor = {
+        ...vendor,
+        id: `V-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockVendors.push(newVendor);
+      return {...newVendor};
+    } catch (error) {
+      console.error('Error creating vendor:', error);
+      throw error;
+    }
   },
   
   update: async (id: string, updates: Partial<Vendor>): Promise<Vendor> => {
-    await delay(300);
-    const index = mockVendors.findIndex(v => v.id === id);
-    if (index === -1) throw new Error('Vendor not found');
-    
-    const updatedVendor = {
-      ...mockVendors[index],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-    mockVendors[index] = updatedVendor;
-    return {...updatedVendor};
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(300);
+      const index = mockVendors.findIndex(v => v.id === id);
+      if (index === -1) throw new Error('Vendor not found');
+      
+      const updatedVendor = {
+        ...mockVendors[index],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      mockVendors[index] = updatedVendor;
+      return {...updatedVendor};
+    } catch (error) {
+      console.error('Error updating vendor:', error);
+      throw error;
+    }
   }
 };
 
@@ -876,6 +1066,12 @@ export const userAPI = {
       
       if (error) throw error;
       
+      if (!data) {
+        return costCenter 
+          ? mockCostCenterApprovers.filter(a => a.costCenter === costCenter)
+          : [...mockCostCenterApprovers];
+      }
+      
       return data.map(a => ({
         id: a.id,
         userId: a.user_id,
@@ -899,34 +1095,40 @@ export const userAPI = {
     costCenter: string; 
     approvalLimit: number;
   }) => {
-    await delay(500);
-    
-    // Find user details
-    const users = await userAPI.getApprovers();
-    const user = users.find(u => u.id === approver.userId);
-    
-    if (!user) throw new Error('User not found');
-    
-    // Check if this user already has approval rights for this cost center
-    const existing = mockCostCenterApprovers.find(
-      a => a.userId === approver.userId && a.costCenter === approver.costCenter
-    );
-    
-    if (existing) {
-      throw new Error('This user is already an approver for this cost center');
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      
+      // Find user details
+      const users = await userAPI.getApprovers();
+      const user = users.find(u => u.id === approver.userId);
+      
+      if (!user) throw new Error('User not found');
+      
+      // Check if this user already has approval rights for this cost center
+      const existing = mockCostCenterApprovers.find(
+        a => a.userId === approver.userId && a.costCenter === approver.costCenter
+      );
+      
+      if (existing) {
+        throw new Error('This user is already an approver for this cost center');
+      }
+      
+      const newApprover = {
+        id: `ca-${Date.now()}`,
+        userId: approver.userId,
+        userName: user.name,
+        userEmail: user.email,
+        costCenter: approver.costCenter,
+        approvalLimit: approver.approvalLimit
+      };
+      
+      mockCostCenterApprovers.push(newApprover);
+      return newApprover;
+    } catch (error) {
+      console.error('Error creating cost center approver:', error);
+      throw error;
     }
-    
-    const newApprover = {
-      id: `ca-${Date.now()}`,
-      userId: approver.userId,
-      userName: user.name,
-      userEmail: user.email,
-      costCenter: approver.costCenter,
-      approvalLimit: approver.approvalLimit
-    };
-    
-    mockCostCenterApprovers.push(newApprover);
-    return newApprover;
   },
   
   updateCostCenterApprover: async (approver: {
@@ -935,47 +1137,59 @@ export const userAPI = {
     costCenter: string; 
     approvalLimit: number;
   }) => {
-    await delay(500);
-    
-    const index = mockCostCenterApprovers.findIndex(a => a.id === approver.id);
-    if (index === -1) throw new Error('Approver not found');
-    
-    // Find user details
-    const users = await userAPI.getApprovers();
-    const user = users.find(u => u.id === approver.userId);
-    
-    if (!user) throw new Error('User not found');
-    
-    // Check for duplicates (same user, same cost center, different id)
-    const duplicateIndex = mockCostCenterApprovers.findIndex(
-      a => a.id !== approver.id && 
-          a.userId === approver.userId && 
-          a.costCenter === approver.costCenter
-    );
-    
-    if (duplicateIndex !== -1) {
-      throw new Error('This user is already an approver for this cost center');
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      
+      const index = mockCostCenterApprovers.findIndex(a => a.id === approver.id);
+      if (index === -1) throw new Error('Approver not found');
+      
+      // Find user details
+      const users = await userAPI.getApprovers();
+      const user = users.find(u => u.id === approver.userId);
+      
+      if (!user) throw new Error('User not found');
+      
+      // Check for duplicates (same user, same cost center, different id)
+      const duplicateIndex = mockCostCenterApprovers.findIndex(
+        a => a.id !== approver.id && 
+            a.userId === approver.userId && 
+            a.costCenter === approver.costCenter
+      );
+      
+      if (duplicateIndex !== -1) {
+        throw new Error('This user is already an approver for this cost center');
+      }
+      
+      const updatedApprover = {
+        ...mockCostCenterApprovers[index],
+        costCenter: approver.costCenter,
+        approvalLimit: approver.approvalLimit
+      };
+      
+      mockCostCenterApprovers[index] = updatedApprover;
+      return updatedApprover;
+    } catch (error) {
+      console.error('Error updating cost center approver:', error);
+      throw error;
     }
-    
-    const updatedApprover = {
-      ...mockCostCenterApprovers[index],
-      costCenter: approver.costCenter,
-      approvalLimit: approver.approvalLimit
-    };
-    
-    mockCostCenterApprovers[index] = updatedApprover;
-    return updatedApprover;
   },
   
   deleteCostCenterApprover: async (id: string) => {
-    await delay(500);
-    
-    const index = mockCostCenterApprovers.findIndex(a => a.id === id);
-    if (index === -1) throw new Error('Approver not found');
-    
-    const approver = mockCostCenterApprovers[index];
-    mockCostCenterApprovers.splice(index, 1);
-    
-    return approver;
+    try {
+      // TODO: Implement Supabase version when needed
+      await delay(500);
+      
+      const index = mockCostCenterApprovers.findIndex(a => a.id === id);
+      if (index === -1) throw new Error('Approver not found');
+      
+      const approver = mockCostCenterApprovers[index];
+      mockCostCenterApprovers.splice(index, 1);
+      
+      return approver;
+    } catch (error) {
+      console.error('Error deleting cost center approver:', error);
+      throw error;
+    }
   }
 };
