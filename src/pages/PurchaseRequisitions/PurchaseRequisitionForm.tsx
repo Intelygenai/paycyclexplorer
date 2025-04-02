@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { purchaseRequisitionAPI } from '@/services/api';
-import { LineItem } from '@/types/p2p';
+import { LineItem, PRStatus } from '@/types/p2p'; // Import PRStatus enum
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -150,7 +150,7 @@ const PurchaseRequisitionForm = () => {
         department: data.department,
         costCenter: data.costCenter,
         budgetCode: data.budgetCode,
-        status: "DRAFT",
+        status: PRStatus.DRAFT, // Use the enum value instead of string
         dateCreated: new Date().toISOString(),
         dateNeeded: data.dateNeeded.toISOString(),
         lineItems,
