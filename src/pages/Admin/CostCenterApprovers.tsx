@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userAPI } from '@/services/api';
@@ -96,7 +95,7 @@ const CostCenterApprovers = () => {
   // Get cost center approvers
   const { data: approvers = [], isLoading: isLoadingApprovers } = useQuery({
     queryKey: ['costCenterApprovers'],
-    queryFn: userAPI.getCostCenterApprovers,
+    queryFn: () => userAPI.getCostCenterApprovers(),
   });
 
   // Get cost centers
@@ -108,7 +107,7 @@ const CostCenterApprovers = () => {
   // Get users who can be approvers
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
-    queryFn: userAPI.getApprovers,
+    queryFn: () => userAPI.getApprovers(),
   });
 
   const createApproverMutation = useMutation({
