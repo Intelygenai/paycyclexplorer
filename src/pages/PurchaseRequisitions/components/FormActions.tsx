@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
 interface FormActionsProps {
   onDraftSave?: () => void;
   onSubmit?: () => void;
+  isSubmitting?: boolean;
 }
 
-const FormActions: React.FC<FormActionsProps> = ({ onDraftSave, onSubmit }) => {
+const FormActions: React.FC<FormActionsProps> = ({ onDraftSave, onSubmit, isSubmitting = false }) => {
   const navigate = useNavigate();
 
   return (
@@ -17,12 +18,14 @@ const FormActions: React.FC<FormActionsProps> = ({ onDraftSave, onSubmit }) => {
         type="button" 
         variant="outline" 
         onClick={() => navigate('/purchase-requisitions')}
+        disabled={isSubmitting}
       >
         Cancel
       </Button>
       <Button 
         type="button" 
         onClick={onDraftSave}
+        disabled={isSubmitting}
       >
         Save as Draft
       </Button>
@@ -30,6 +33,7 @@ const FormActions: React.FC<FormActionsProps> = ({ onDraftSave, onSubmit }) => {
         type="button" 
         onClick={onSubmit} 
         variant="default"
+        disabled={isSubmitting}
       >
         Submit for Approval
       </Button>

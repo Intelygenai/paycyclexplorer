@@ -28,6 +28,7 @@ const PurchaseRequisitionForm = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 2 weeks from now as default
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Local state for form values to handle controlled components
   const [formValues, setFormValues] = useState<{
@@ -94,6 +95,8 @@ const PurchaseRequisitionForm = () => {
       return;
     }
     
+    setIsSubmitting(true);
+    
     try {
       const newPR = {
         id: `PR-${new Date().getTime()}`,
@@ -122,12 +125,24 @@ const PurchaseRequisitionForm = () => {
         version: 1,
       };
       
-      const result = await purchaseRequisitionAPI.create(newPR);
-      
-      toast({
-        title: "Success",
-        description: `Purchase requisition ${status === PRStatus.DRAFT ? 'saved as draft' : 'submitted for approval'}`,
-      });
+      // If submitting for approval, use the submit API endpoint
+      if (status === PRStatus.PENDING_APPROVAL) {
+        const result = await purchaseRequisitionAPI.create(newPR);
+        // After creation, submit the PR for approval
+        await purchaseRequisitionAPI.submit(result.id);
+        
+        toast({
+          title: "Success",
+          description: "Purchase requisition submitted for approval",
+        });
+      } else {
+        // Just save as draft
+        await purchaseRequisitionAPI.create(newPR);
+        toast({
+          title: "Success",
+          description: "Purchase requisition saved as draft",
+        });
+      }
       
       navigate('/purchase-requisitions');
     } catch (error) {
@@ -137,6 +152,8 @@ const PurchaseRequisitionForm = () => {
         description: "Failed to create purchase requisition",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -178,6 +195,7 @@ const PurchaseRequisitionForm = () => {
           <FormActions 
             onDraftSave={handleDraftSave}
             onSubmit={handleSubmitForApproval}
+            isSubmitting={isSubmitting}
           />
         </div>
       </form>
