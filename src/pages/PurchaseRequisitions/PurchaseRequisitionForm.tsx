@@ -24,7 +24,7 @@ interface FormValues {
 
 const PurchaseRequisitionForm = () => {
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>();
+  const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormValues>();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 2 weeks from now as default
   );
@@ -58,11 +58,22 @@ const PurchaseRequisitionForm = () => {
     queryFn: () => ['Office Supplies', 'IT Equipment', 'Software', 'Furniture', 'Services', 'Travel', 'Other'],
   });
 
-  const onSubmit = async (data: FormValues) => {
+  const createPurchaseRequisition = async (status: PRStatus) => {
     if (!validateLineItems()) {
       return;
     }
 
+    const formValues = getValues();
+    
+    if (!formValues.department || !formValues.costCenter || !formValues.budgetCode || !selectedDate || !formValues.justification) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const newPR = {
         id: `PR-${new Date().getTime()}`,
@@ -71,14 +82,14 @@ const PurchaseRequisitionForm = () => {
           name: "John Doe",
           email: "john.doe@example.com",
         },
-        department: data.department,
-        costCenter: data.costCenter,
-        budgetCode: data.budgetCode,
-        status: PRStatus.DRAFT,
+        department: formValues.department,
+        costCenter: formValues.costCenter,
+        budgetCode: formValues.budgetCode,
+        status: status,
         dateCreated: new Date().toISOString(),
-        dateNeeded: data.dateNeeded.toISOString(),
+        dateNeeded: selectedDate.toISOString(),
         lineItems,
-        justification: data.justification,
+        justification: formValues.justification,
         totalAmount: calculateTotal(),
         approvers: [
           {
@@ -95,7 +106,7 @@ const PurchaseRequisitionForm = () => {
       
       toast({
         title: "Success",
-        description: "Purchase requisition created successfully",
+        description: `Purchase requisition ${status === PRStatus.DRAFT ? 'saved as draft' : 'submitted for approval'}`,
       });
       
       navigate('/purchase-requisitions');
@@ -109,11 +120,19 @@ const PurchaseRequisitionForm = () => {
     }
   };
 
+  const handleDraftSave = () => {
+    createPurchaseRequisition(PRStatus.DRAFT);
+  };
+
+  const handleSubmitForApproval = () => {
+    createPurchaseRequisition(PRStatus.PENDING_APPROVAL);
+  };
+
   return (
     <div className="space-y-6">
       <FormHeader />
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <div className="grid gap-6">
           <RequisitionDetailsForm 
             register={register}
@@ -134,7 +153,10 @@ const PurchaseRequisitionForm = () => {
             calculateTotal={calculateTotal}
           />
 
-          <FormActions />
+          <FormActions 
+            onDraftSave={handleDraftSave}
+            onSubmit={handleSubmitForApproval}
+          />
         </div>
       </form>
     </div>

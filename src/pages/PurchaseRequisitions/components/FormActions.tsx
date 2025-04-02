@@ -20,8 +20,19 @@ const FormActions: React.FC<FormActionsProps> = ({ onDraftSave, onSubmit }) => {
       >
         Cancel
       </Button>
-      <Button type="submit">Save as Draft</Button>
-      <Button type="submit">Submit for Approval</Button>
+      <Button 
+        type="button" 
+        onClick={onDraftSave}
+      >
+        Save as Draft
+      </Button>
+      <Button 
+        type="button" 
+        onClick={onSubmit} 
+        variant="default"
+      >
+        Submit for Approval
+      </Button>
     </div>
   );
 };
