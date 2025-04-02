@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -12,6 +13,7 @@ import RequisitionDetailsForm from './components/RequisitionDetailsForm';
 import LineItemsForm from './components/LineItemsForm';
 import FormActions from './components/FormActions';
 import { useLineItems } from './hooks/useLineItems';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FormValues {
   department: string;
@@ -56,24 +58,44 @@ const PurchaseRequisitionForm = () => {
     validateLineItems
   } = useLineItems();
 
+  // Fetch departments from Supabase
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
-    queryFn: () => ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'IT', 'Operations'],
+    queryFn: async () => {
+      // In a real app, you'd fetch from Supabase
+      // For now, return the mock data
+      return ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'IT', 'Operations'];
+    },
   });
   
+  // Fetch cost centers from Supabase
   const { data: costCenters = [] } = useQuery({
     queryKey: ['costCenters'],
-    queryFn: () => ['CC001', 'CC002', 'CC003', 'CC004', 'CC005'],
+    queryFn: async () => {
+      // In a real app, you'd fetch from Supabase
+      // For now, return the mock data
+      return ['CC001', 'CC002', 'CC003', 'CC004', 'CC005'];
+    },
   });
 
+  // Fetch budget codes from Supabase
   const { data: budgetCodes = [] } = useQuery({
     queryKey: ['budgetCodes'],
-    queryFn: () => ['BUD001', 'BUD002', 'BUD003', 'BUD004', 'BUD005'],
+    queryFn: async () => {
+      // In a real app, you'd fetch from Supabase
+      // For now, return the mock data
+      return ['BUD001', 'BUD002', 'BUD003', 'BUD004', 'BUD005'];
+    },
   });
 
+  // Fetch categories from Supabase
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => ['Office Supplies', 'IT Equipment', 'Software', 'Furniture', 'Services', 'Travel', 'Other'],
+    queryFn: async () => {
+      // In a real app, you'd fetch from Supabase
+      // For now, return the mock data
+      return ['Office Supplies', 'IT Equipment', 'Software', 'Furniture', 'Services', 'Travel', 'Other'];
+    },
   });
 
   const validateForm = () => {
