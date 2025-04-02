@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -48,7 +47,6 @@ const PurchaseRequisitionForm = () => {
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>();
 
-  // Fetch data for dropdowns (could be replaced by actual API calls)
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: () => ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'IT', 'Operations'],
@@ -102,7 +100,6 @@ const PurchaseRequisitionForm = () => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         
-        // Recalculate total price if quantity or unit price changes
         if (field === 'quantity' || field === 'unitPrice') {
           const quantity = field === 'quantity' ? Number(value) : Number(item.quantity);
           const unitPrice = field === 'unitPrice' ? Number(value) : Number(item.unitPrice);
@@ -122,7 +119,6 @@ const PurchaseRequisitionForm = () => {
   };
 
   const onSubmit = async (data: FormValues) => {
-    // Validate line items
     const invalidItems = lineItems.filter(item => 
       !item.description.trim() || 
       item.quantity <= 0 || 
@@ -139,18 +135,17 @@ const PurchaseRequisitionForm = () => {
     }
 
     try {
-      // Create the PR object
       const newPR = {
         id: `PR-${new Date().getTime()}`,
         requester: {
           id: "user123",
-          name: "John Doe", // Would come from auth context in a real app
+          name: "John Doe",
           email: "john.doe@example.com",
         },
         department: data.department,
         costCenter: data.costCenter,
         budgetCode: data.budgetCode,
-        status: PRStatus.DRAFT, // Use the enum value instead of string
+        status: PRStatus.DRAFT,
         dateCreated: new Date().toISOString(),
         dateNeeded: data.dateNeeded.toISOString(),
         lineItems,
@@ -161,13 +156,12 @@ const PurchaseRequisitionForm = () => {
             id: "approver123",
             name: "Jane Smith",
             email: "jane.smith@example.com",
-            status: "PENDING",
+            status: "PENDING" as "PENDING",
           }
         ],
         version: 1,
       };
       
-      // Save the PR
       await purchaseRequisitionAPI.create(newPR);
       
       toast({
@@ -175,7 +169,6 @@ const PurchaseRequisitionForm = () => {
         description: "Purchase requisition created successfully",
       });
       
-      // Navigate back to PR list
       navigate('/purchase-requisitions');
     } catch (error) {
       console.error("Error creating PR:", error);
@@ -208,7 +201,6 @@ const PurchaseRequisitionForm = () => {
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid gap-6">
-          {/* Header Details Card */}
           <Card>
             <CardHeader>
               <CardTitle>Requisition Details</CardTitle>
@@ -307,7 +299,6 @@ const PurchaseRequisitionForm = () => {
             </CardContent>
           </Card>
 
-          {/* Line Items Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Line Items</CardTitle>
