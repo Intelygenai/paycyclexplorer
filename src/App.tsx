@@ -20,6 +20,7 @@ import PurchaseRequisitionList from "@/pages/PurchaseRequisitions/PurchaseRequis
 import PurchaseRequisitionForm from "@/pages/PurchaseRequisitions/PurchaseRequisitionForm";
 import PurchaseRequisitionDetail from "@/pages/PurchaseRequisitions/PurchaseRequisitionDetail";
 import PurchaseOrderList from "@/pages/PurchaseOrders/PurchaseOrderList";
+import PurchaseOrderDetail from "@/pages/PurchaseOrders/PurchaseOrderDetail";
 import GoodsReceiptList from "@/pages/GoodsReceipt/GoodsReceiptList";
 import VendorList from "@/pages/Vendors/VendorList";
 import CostCenterApprovers from "@/pages/Admin/CostCenterApprovers"; 
@@ -79,6 +80,13 @@ const App = () => (
               <Route path="/purchase-orders" element={
                 <SupabaseProtectedRoute>
                   <PurchaseOrderList />
+                </SupabaseProtectedRoute>
+              } />
+              
+              {/* Add missing route for PurchaseOrderDetail */}
+              <Route path="/purchase-orders/:id" element={
+                <SupabaseProtectedRoute>
+                  <PurchaseOrderDetail />
                 </SupabaseProtectedRoute>
               } />
               
