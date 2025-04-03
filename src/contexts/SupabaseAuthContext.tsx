@@ -85,7 +85,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      // Use raw query since the type definitions don't include the user_profiles table yet
+      // Use raw query since we're working with custom types
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
