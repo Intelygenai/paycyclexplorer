@@ -7,6 +7,7 @@ import { PRStatus } from '@/types/p2p';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Permission } from '@/types/auth';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 
 import {
   Card,
@@ -52,7 +53,8 @@ const PurchaseRequisitionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth();
+  const { profile, hasPermission } = useSupabaseAuth();
   
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -67,9 +69,9 @@ const PurchaseRequisitionDetail = () => {
   
   // Query to check if user has approval rights for this PR
   const { data: approvalData } = useQuery({
-    queryKey: ['approvalRights', id, user?.id],
+    queryKey: ['approvalRights', id, profile?.id],
     queryFn: async () => {
-      if (!user || !pr) return { canApprove: false };
+      if (!profile || !pr) return { canApprove: false };
       
       // Admins can approve any PR
       if (hasPermission(Permission.APPROVE_PR)) {
@@ -78,7 +80,7 @@ const PurchaseRequisitionDetail = () => {
       
       // Check if user is an approver for this cost center
       const approvers = await userAPI.getCostCenterApprovers(pr.costCenter);
-      const userApprover = approvers.find(a => a.userId === user.id);
+      const userApprover = approvers.find(a => a.userId === profile.id);
       
       if (!userApprover) return { canApprove: false };
       
@@ -88,12 +90,12 @@ const PurchaseRequisitionDetail = () => {
         approvalLimit: userApprover.approvalLimit
       };
     },
-    enabled: !!user && !!pr,
+    enabled: !!profile && !!pr,
   });
   
   const approveMutation = useMutation({
     mutationFn: () => 
-      purchaseRequisitionAPI.approve(id!, user!.id, comment),
+      purchaseRequisitionAPI.approve(id!, profile!.id, comment),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseRequisition', id] });
       queryClient.invalidateQueries({ queryKey: ['purchaseRequisitions'] });
@@ -105,6 +107,7 @@ const PurchaseRequisitionDetail = () => {
       setComment('');
     },
     onError: (error) => {
+      console.error('Error approving PR:', error);
       toast({
         title: "Approval Failed",
         description: `Failed to approve PR: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -115,7 +118,7 @@ const PurchaseRequisitionDetail = () => {
   
   const rejectMutation = useMutation({
     mutationFn: () => 
-      purchaseRequisitionAPI.reject(id!, user!.id, comment),
+      purchaseRequisitionAPI.reject(id!, profile!.id, comment),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseRequisition', id] });
       queryClient.invalidateQueries({ queryKey: ['purchaseRequisitions'] });
@@ -207,7 +210,7 @@ const PurchaseRequisitionDetail = () => {
   const canApprove = (approvalData?.canApprove && pr.status === PRStatus.PENDING_APPROVAL);
   const canConvertToPO = (pr.status === PRStatus.APPROVED && hasPermission(Permission.CREATE_PO));
   const isPendingMyApproval = pr.status === PRStatus.PENDING_APPROVAL && 
-    pr.approvers.some(a => a.id === user?.id && a.status === 'PENDING');
+    pr.approvers.some(a => a.id === profile?.id && a.status === 'PENDING');
 
   return (
     <div className="space-y-6">
