@@ -4,6 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { Permission } from '@/types/auth';
 import Layout from './Layout/Layout';
+import { Loader2 } from 'lucide-react';
 
 interface SupabaseProtectedRouteProps {
   children: JSX.Element;
@@ -24,18 +25,20 @@ const SupabaseProtectedRoute = ({
   // If still loading auth state, show loading indicator
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
+        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+        <p className="text-gray-600">Loading your profile...</p>
       </div>
     );
   }
 
   // If not logged in, redirect to login
-  if (!session || !profile) {
+  if (!session) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-
-  // If doesn't have permissions, show unauthorized
+  
+  // Even if profile is not fully loaded, we'll allow access to basic pages
+  // but show unauthorized for pages that require specific permissions
   if (requiredPermission && !hasRequiredPermission) {
     return (
       <Layout>
@@ -47,8 +50,8 @@ const SupabaseProtectedRoute = ({
     );
   }
 
-  // All good, render the children
-  return children;
+  // Wrap the children in Layout
+  return <Layout>{children}</Layout>;
 };
 
 export default SupabaseProtectedRoute;

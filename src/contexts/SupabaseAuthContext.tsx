@@ -4,6 +4,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Permission } from '@/types/auth';
 import { UserProfile } from '@/types/database';
+import { toast } from '@/hooks/use-toast';
 
 interface AuthState {
   user: User | null;
@@ -90,6 +91,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log('Fetching user profile for:', userId);
+      
       // Use raw query since we're working with custom types
       const { data, error } = await supabase
         .from('user_profiles')
@@ -99,11 +101,30 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       if (error) {
         console.error('Error fetching user profile:', error);
+        
+        // Even if there's an error, we should still set loading to false
+        // and create a fallback profile so the app can continue functioning
+        const fallbackProfile: UserProfile = {
+          id: userId,
+          email: state.user?.email || '',
+          name: state.user?.user_metadata?.name || 'User',
+          role: UserRole.REQUESTER, // Default role
+          department: state.user?.user_metadata?.department || '',
+        };
+        
         setState(prev => ({ 
           ...prev, 
-          profile: null,
+          profile: fallbackProfile,
           loading: false 
         }));
+        
+        // Show a toast notification about the error
+        toast({
+          title: "Profile loading issue",
+          description: "Using temporary profile data. Some features may be limited.",
+          variant: "destructive",
+        });
+        
         return;
       }
 
@@ -124,10 +145,36 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           profile,
           loading: false 
         }));
+      } else {
+        // No data found, create a fallback profile
+        const fallbackProfile: UserProfile = {
+          id: userId,
+          email: state.user?.email || '',
+          name: state.user?.user_metadata?.name || 'User',
+          role: UserRole.REQUESTER, // Default role
+          department: state.user?.user_metadata?.department || '',
+        };
+        
+        setState(prev => ({ 
+          ...prev, 
+          profile: fallbackProfile,
+          loading: false 
+        }));
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
-      setState(prev => ({ ...prev, loading: false }));
+      setState(prev => ({ 
+        ...prev, 
+        loading: false,
+        // Set a fallback profile so the UI doesn't break
+        profile: {
+          id: userId,
+          email: state.user?.email || '',
+          name: state.user?.user_metadata?.name || 'User',
+          role: UserRole.REQUESTER, // Default role
+          department: state.user?.user_metadata?.department || '',
+        }
+      }));
     }
   };
 
@@ -221,8 +268,12 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const hasPermission = (permission: Permission): boolean => {
-    return state.profile?.role === UserRole.ADMIN || 
-           state.profile ? getRolePermissions(state.profile.role as UserRole).includes(permission) : false;
+    // Make sure it works even if there's an issue with the profile
+    if (!state.profile) return false;
+    
+    // Return true for admins, otherwise check specific permissions
+    return state.profile.role === UserRole.ADMIN || 
+           getRolePermissions(state.profile.role as UserRole).includes(permission);
   };
 
   return (
