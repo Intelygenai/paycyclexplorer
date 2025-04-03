@@ -50,9 +50,12 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   useEffect(() => {
+    console.log('Setting up auth state listener');
+    
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        console.log('Auth state change:', event, session?.user?.email);
         setState(prev => ({ ...prev, session, user: session?.user || null }));
         
         // If we have a user, fetch their profile 
@@ -68,6 +71,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Existing session check:', session?.user?.email);
       setState(prev => ({ ...prev, session, user: session?.user || null }));
       
       if (session?.user) {
@@ -85,6 +89,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log('Fetching user profile for:', userId);
       // Use raw query since we're working with custom types
       const { data, error } = await supabase
         .from('user_profiles')
@@ -103,6 +108,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       if (data) {
+        console.log('User profile fetched:', data);
         const profile: UserProfile = {
           id: data.id,
           email: data.email,
@@ -140,8 +146,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         throw error;
       }
       
-      // We don't need to set state here as the onAuthStateChange listener will handle it
       console.log('Login successful:', data);
+      // We don't need to set state here as the onAuthStateChange listener will handle it
     } catch (error) {
       console.error('Login error:', error);
       setState(prev => ({ ...prev, loading: false }));
@@ -159,6 +165,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setState(prev => ({ ...prev, loading: true }));
     
     try {
+      console.log('Attempting to signup with:', email);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -177,6 +184,25 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       
       console.log('Signup successful:', data);
+
+      if (data.user) {
+        // Create a profile for the new user
+        const profileData = {
+          id: data.user.id,
+          email,
+          name,
+          department,
+          role
+        };
+
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert([profileData]);
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+        }
+      }
     } catch (error) {
       console.error('Signup error:', error);
       setState(prev => ({ ...prev, loading: false }));

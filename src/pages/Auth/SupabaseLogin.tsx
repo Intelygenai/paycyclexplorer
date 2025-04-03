@@ -30,6 +30,7 @@ const SupabaseLogin = () => {
   
   // Fill in demo credentials
   const fillDemoCredentials = () => {
+    console.log('Setting demo credentials');
     setEmail('admin@example.com');
     setPassword('admin123');
   };
@@ -47,6 +48,7 @@ const SupabaseLogin = () => {
     setIsLoggingIn(true);
     
     try {
+      console.log(`Attempting to login with: ${email}`);
       await login(email, password);
       toast({
         title: "Login successful",
