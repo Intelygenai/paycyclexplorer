@@ -129,12 +129,19 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('Attempting to login with:', email);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Login error:', error);
+        throw error;
+      }
+      
+      // We don't need to set state here as the onAuthStateChange listener will handle it
+      console.log('Login successful:', data);
     } catch (error) {
       console.error('Login error:', error);
       setState(prev => ({ ...prev, loading: false }));
@@ -152,7 +159,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -164,7 +171,12 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
+      
+      console.log('Signup successful:', data);
     } catch (error) {
       console.error('Signup error:', error);
       setState(prev => ({ ...prev, loading: false }));

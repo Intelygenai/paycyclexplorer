@@ -12,16 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserRole } from '@/types/auth';
 
 const SupabaseLogin = () => {
+  // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.REQUESTER);
+  
+  // UI state
   const [error, setError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
   
   const { login, signup, session, loading } = useSupabaseAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Fill in demo credentials
+  const fillDemoCredentials = () => {
+    setEmail('admin@example.com');
+    setPassword('admin123');
+  };
   
   useEffect(() => {
     // If the user is already logged in, redirect to dashboard
@@ -33,6 +44,7 @@ const SupabaseLogin = () => {
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setIsLoggingIn(true);
     
     try {
       await login(email, password);
@@ -40,17 +52,34 @@ const SupabaseLogin = () => {
         title: "Login successful",
         description: "Welcome back!",
       });
-    } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      // No need to navigate here as useEffect will handle it
+    } catch (err: any) {
+      console.error('Login error:', err);
+      // Extract the actual error message
+      let errorMessage = 'Invalid credentials. Please try again.';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.error) {
+        errorMessage = err.error;
+      } else if (err.data?.error) {
+        errorMessage = err.data.error;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
   
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setIsSigningUp(true);
     
     if (!name.trim()) {
       setError('Name is required.');
+      setIsSigningUp(false);
       return;
     }
     
@@ -60,20 +89,32 @@ const SupabaseLogin = () => {
         title: "Account created",
         description: "Your account has been created successfully. You can now log in.",
       });
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.message.includes('already exists')) {
-          setError('This email is already registered. Please log in instead.');
-        } else {
-          setError(err.message);
+      // Reset form and switch to login tab
+      setName('');
+      setDepartment('');
+      const loginTab = document.querySelector('[data-state="inactive"][data-value="login"]') as HTMLButtonElement;
+      if (loginTab) loginTab.click();
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (typeof err === 'object') {
+        if (err.message?.includes('already exists')) {
+          errorMessage = 'This email is already registered. Please log in instead.';
+        } else if (err.message) {
+          errorMessage = err.message;
+        } else if (err.error) {
+          errorMessage = err.error;
         }
-      } else {
-        setError('An unexpected error occurred. Please try again.');
       }
+      
+      setError(errorMessage);
+    } finally {
+      setIsSigningUp(false);
     }
   };
   
-  if (loading) {
+  if (loading && !isLoggingIn && !isSigningUp) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -119,9 +160,6 @@ const SupabaseLogin = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="login-password">Password</Label>
-                  <Link to="/reset-password" className="text-sm text-blue-600 hover:underline">
-                    Forgot password?
-                  </Link>
                 </div>
                 <Input
                   id="login-password"
@@ -136,9 +174,9 @@ const SupabaseLogin = () => {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={loading}
+                disabled={isLoggingIn}
               >
-                {loading ? (
+                {isLoggingIn ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Logging in...
@@ -205,9 +243,9 @@ const SupabaseLogin = () => {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={loading}
+                disabled={isSigningUp}
               >
-                {loading ? (
+                {isSigningUp ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creating account...
@@ -220,12 +258,17 @@ const SupabaseLogin = () => {
           </TabsContent>
         </Tabs>
         
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>For demonstration purposes, you can also use:</p>
-          <p className="mt-1">
-            Email: <span className="font-semibold">admin@example.com</span>
-            <br />
-            Password: <span className="font-semibold">admin123</span>
+        <div className="mt-6 text-center">
+          <Button 
+            variant="outline" 
+            onClick={fillDemoCredentials} 
+            className="w-full mt-4"
+          >
+            Use demo credentials
+          </Button>
+
+          <p className="text-xs text-gray-500 mt-4">
+            Demo credentials: admin@example.com / admin123
           </p>
         </div>
       </div>
