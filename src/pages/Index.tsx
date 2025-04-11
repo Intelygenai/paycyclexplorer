@@ -1,18 +1,25 @@
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Redirect to login page
-    navigate('/login');
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard');
+      } else {
+        navigate('/login');
+      }
+    });
   }, [navigate]);
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <p>Redirecting to login...</p>
+      <p>Loading...</p>
     </div>
   );
 };

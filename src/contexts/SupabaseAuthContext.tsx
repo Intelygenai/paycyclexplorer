@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,7 +66,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       console.log('Fetching user profile for:', userId);
       
-      // Direct query without RLS
+      // Call the secure RPC function we just created
       const { data, error } = await supabase
         .rpc('get_current_user_profile');
 
@@ -170,7 +169,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             await fetchUserProfile(session.user.id);
           }, 0);
         } else {
-          setState(prev => ({ ...prev, profile: null }));
+          setState(prev => ({ ...prev, profile: null, loading: false }));
         }
       }
     );
@@ -182,10 +181,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       if (session?.user) {
         fetchUserProfile(session.user.id);
+      } else {
+        setState(prev => ({ ...prev, loading: false }));
       }
-    })
-    .finally(() => {
-      setState(prev => ({ ...prev, loading: false }));
     });
 
     return () => {
