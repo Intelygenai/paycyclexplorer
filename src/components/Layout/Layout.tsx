@@ -173,10 +173,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header with user profile and logout in top right */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-end px-4">
+        {/* Header with user profile and logout in top right - fixed position and higher z-index */}
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-end px-6 sticky top-0 z-30 shadow-sm">
           {user && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -184,9 +184,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       variant="ghost" 
                       size="icon"
                       onClick={() => navigate('/settings')}
-                      className="rounded-full"
+                      className="rounded-full hover:bg-gray-100"
                     >
-                      <UserCircle className="h-5 w-5" />
+                      <UserCircle className="h-6 w-6 text-gray-700" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -202,9 +202,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       variant="ghost" 
                       size="icon"
                       onClick={handleLogout}
-                      className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                      className="rounded-full hover:bg-red-50"
                     >
-                      <LogOut className="h-5 w-5" />
+                      <LogOut className="h-6 w-6 text-red-500" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
